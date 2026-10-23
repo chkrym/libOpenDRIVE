@@ -2,6 +2,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
+
 struct OpenDriveFixture
 {
     OpenDriveFixture() : odr_map("test.xodr")
@@ -115,6 +117,38 @@ TEST_CASE("Single side lane sections", "[xodr][single_side]")
     const odr::RoutingGraph routing_graph = odr_map.get_routing_graph();
     const auto              path = routing_graph.shortest_path(odr::LaneKey("1", 0.0, -1), odr::LaneKey("1", 60.0, -1));
     REQUIRE(path.size() == 3);
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}
+
+TEST_CASE("Poly3 geometry", "[xodr][poly3]")
+{
+    odr::OpenDriveMap odr_map("poly3.xodr", false);
+
+    // straight line: start point is offset by v = a, heading 90 degrees
+    const odr::Road  straight = odr_map.get_road("1");
+    const odr::Vec3D start = straight.get_xyz(0.0, 0.0, 0.0);
+    REQUIRE(start[0] == Catch::Approx(8.0));
+    REQUIRE(start[1] == Catch::Approx(0.0).margin(1e-9));
+    const odr::Vec3D end = straight.get_xyz(50.0, 0.0, 0.0);
+    REQUIRE(end[0] == Catch::Approx(8.0));
+    REQUIRE(end[1] == Catch::Approx(50.0));
+
+    // curved: end point lies on v(u) and the reference line length matches @length
+    const odr::Road  curved = odr_map.get_road("2");
+    const odr::Vec3D curved_end = curved.get_xyz(35.0, 0.0, 0.0);
+    const double     u = curved_end[0];
+    REQUIRE(curved_end[1] == Catch::Approx(0.1 * u + 0.002 * u * u - 0.00003 * u * u * u));
+
+    double     arc_length = 0.0;
+    odr::Vec3D prev = curved.get_xyz(0.0, 0.0, 0.0);
+    for (int i = 1; i <= 3500; i++)
+    {
+        const odr::Vec3D pt = curved.get_xyz(i * 0.01, 0.0, 0.0);
+        arc_length += std::hypot(pt[0] - prev[0], pt[1] - prev[1]);
+        prev = pt;
+    }
+    REQUIRE(arc_length == Catch::Approx(35.0).epsilon(1e-4));
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
