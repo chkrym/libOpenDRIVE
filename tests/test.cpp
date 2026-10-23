@@ -189,3 +189,33 @@ TEST_CASE("Lateral profile shape", "[xodr][lateral_shape]")
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
+
+TEST_CASE("Header attributes and offset", "[xodr][header]")
+{
+    const odr::OpenDriveMap odr_map("header.xodr");
+    const odr::Header&      header = odr_map.header;
+
+    REQUIRE(header.rev_major == 1);
+    REQUIRE(header.rev_minor == 6);
+    REQUIRE(header.name == "header_test");
+    REQUIRE(header.version == "1.00");
+    REQUIRE(header.date == "2026-10-23T12:00:00");
+    REQUIRE(header.vendor == "libOpenDRIVE");
+    REQUIRE(header.north == 100.0);
+    REQUIRE(header.south == -10.0);
+    REQUIRE(header.east == 200.0);
+    REQUIRE(header.west == -20.0);
+
+    REQUIRE(header.offset.has_value());
+    REQUIRE(header.offset->x == 500000.0);
+    REQUIRE(header.offset->y == 5400000.0);
+    REQUIRE(header.offset->z == 100.0);
+    REQUIRE(header.offset->hdg == 0.5);
+
+    REQUIRE(odr_map.proj4.find("+proj=utm") != std::string::npos);
+
+    // optional values stay empty when not given
+    const odr::OpenDriveMap other_map("lane_border.xodr");
+    REQUIRE(!other_map.header.offset.has_value());
+    REQUIRE(!other_map.header.north.has_value());
+}

@@ -31,6 +31,7 @@ set(SOURCES
     src/Geometries/RoadGeometry.cpp
     src/Geometries/Spiral.cpp
     src/Geometries/Spiral/odrSpiral.cpp
+    src/Header.cpp
     src/Junction.cpp
     src/Lane.cpp
     src/LaneSection.cpp

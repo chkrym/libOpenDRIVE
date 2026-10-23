@@ -1,4 +1,5 @@
 #pragma once
+#include "Header.h"
 #include "Junction.h"
 #include "Road.h"
 #include "RoadNetworkMesh.h"
@@ -36,6 +37,7 @@ public:
     RoadNetworkMesh get_road_network_mesh(const double eps) const;
     RoutingGraph    get_routing_graph() const;
 
+    Header            header;
     std::string       proj4 = "";
     double            x_offs = 0;
     double            y_offs = 0;

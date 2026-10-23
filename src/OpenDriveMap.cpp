@@ -118,7 +118,31 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
     const pugi::xml_node odr_node = xml_doc.child("OpenDRIVE");
 
-    if (const auto geoReference_node = odr_node.child("header").child("geoReference"))
+    const pugi::xml_node header_node = odr_node.child("header");
+    this->header.rev_major = header_node.attribute("revMajor").as_uint(1);
+    this->header.rev_minor = header_node.attribute("revMinor").as_uint(0);
+    this->header.name = header_node.attribute("name").as_string("");
+    this->header.version = header_node.attribute("version").as_string("");
+    this->header.date = header_node.attribute("date").as_string("");
+    this->header.vendor = header_node.attribute("vendor").as_string("");
+    for (auto [attr_name, val_ptr] : {std::pair{"north", &(this->header.north)},
+                                      std::pair{"south", &(this->header.south)},
+                                      std::pair{"east", &(this->header.east)},
+                                      std::pair{"west", &(this->header.west)}})
+    {
+        if (const pugi::xml_attribute attr = header_node.attribute(attr_name))
+            *val_ptr = attr.as_double();
+    }
+
+    if (const pugi::xml_node offset_node = header_node.child("offset"))
+    {
+        this->header.offset = HeaderOffset(offset_node.attribute("x").as_double(0.0),
+                                           offset_node.attribute("y").as_double(0.0),
+                                           offset_node.attribute("z").as_double(0.0),
+                                           offset_node.attribute("hdg").as_double(0.0));
+    }
+
+    if (const auto geoReference_node = header_node.child("geoReference"))
         this->proj4 = geoReference_node.text().as_string("");
 
     std::size_t cnt = 1;
