@@ -468,3 +468,64 @@ TEST_CASE("Road mark explicit lines and sway", "[xodr][roadmark]")
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
+
+TEST_CASE("Surface CRG references and additional data", "[xodr][crg][additional_data]")
+{
+    const odr::OpenDriveMap odr_map("crg_additional_data.xodr");
+
+    // root and header
+    REQUIRE(odr_map.header.additional_data.user_data.size() == 1);
+    REQUIRE(odr_map.header.additional_data.user_data[0].code == "generator");
+    REQUIRE(odr_map.header.additional_data.user_data[0].value == "unit test");
+    REQUIRE(odr_map.additional_data.includes == std::vector<std::string>{"extra_signals.xml"});
+    REQUIRE(odr_map.additional_data.data_quality.has_value());
+    const odr::DataQuality& data_quality = *odr_map.additional_data.data_quality;
+    REQUIRE(data_quality.error->xy_absolute == 0.05);
+    REQUIRE(data_quality.error->z_relative == 0.02);
+    REQUIRE(data_quality.raw_data->source == "sensor");
+    REQUIRE(data_quality.raw_data->post_processing == "cleaned");
+    REQUIRE(data_quality.raw_data->post_processing_comment == "filtered");
+
+    // road, lane section, lane, object, signal
+    const odr::Road road = odr_map.get_road("1");
+    REQUIRE(road.additional_data.user_data.size() == 1);
+    REQUIRE(road.additional_data.user_data[0].code == "road_note");
+    const odr::LaneSection lanesection = road.get_lanesection(0.0);
+    REQUIRE(lanesection.additional_data.user_data[0].code == "section_note");
+    const odr::Lane lane = lanesection.get_lane(-1);
+    REQUIRE(lane.additional_data.user_data.size() == 1);
+    REQUIRE(lane.additional_data.user_data[0].value.empty());
+    REQUIRE(lane.additional_data.user_data[0].content.find("<texture name=\"asphalt_01\" scale=\"2\"") != std::string::npos);
+    REQUIRE(lanesection.get_lane(0).additional_data.empty());
+    REQUIRE(road.id_to_object.at("o1").additional_data.user_data[0].value == "pole.fbx");
+    REQUIRE(road.id_to_signal.at("s1").additional_data.includes == std::vector<std::string>{"sign_details.xml"});
+
+    // road surface CRG
+    REQUIRE(road.surface_crgs.size() == 2);
+    const odr::SurfaceCRG& crg_elevation = road.surface_crgs[0];
+    REQUIRE(crg_elevation.file == "road_1.crg");
+    REQUIRE(crg_elevation.mode == "attached");
+    REQUIRE(crg_elevation.purpose == "elevation");
+    REQUIRE(crg_elevation.s_start == 0.0);
+    REQUIRE(crg_elevation.s_end == 100.0);
+    REQUIRE(crg_elevation.orientation == "same");
+    REQUIRE(crg_elevation.t_offset == 0.5);
+    REQUIRE(crg_elevation.z_scale == 0.8);
+    REQUIRE(crg_elevation.s_offset == 0.0);
+    const odr::SurfaceCRG& crg_friction = road.surface_crgs[1];
+    REQUIRE(crg_friction.purpose == "friction");
+    REQUIRE(crg_friction.mode == "genuine");
+    REQUIRE(crg_friction.h_offset == 0.1);
+    REQUIRE(crg_friction.z_scale == 1.0);
+    REQUIRE(!crg_friction.orientation.has_value());
+
+    // junction surface CRG and user data
+    const odr::Junction junction = odr_map.get_junction("100");
+    REQUIRE(junction.surface_crgs.size() == 1);
+    REQUIRE(junction.surface_crgs[0].file == "junction.crg");
+    REQUIRE(junction.surface_crgs[0].mode == "global");
+    REQUIRE(junction.surface_crgs[0].purpose == "elevation");
+    REQUIRE(junction.surface_crgs[0].z_offset == 1.5);
+    REQUIRE(!junction.surface_crgs[0].s_start.has_value());
+    REQUIRE(junction.additional_data.user_data[0].code == "junction_note");
+}

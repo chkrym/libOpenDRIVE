@@ -1,4 +1,6 @@
 #pragma once
+#include "AdditionalData.h"
+#include "SurfaceCRG.h"
 #include "Utils.hpp"
 
 #include <cstdint>
@@ -114,6 +116,9 @@ public:
     std::string name = "";
     std::string id = "";
     std::string type = "default"; // "default" or "virtual"
+
+    std::vector<SurfaceCRG> surface_crgs; // OpenDRIVE 1.6.1, 10.3 <surface><CRG>, supersedes elevation of connecting roads
+    AdditionalData          additional_data;
 
     std::map<std::string, JunctionConnection> id_to_connection;
     std::map<std::string, JunctionController> id_to_controller;

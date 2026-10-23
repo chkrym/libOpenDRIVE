@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include "Geometries/CubicSpline.h"
 #include "RoadMark.h"
 
@@ -102,6 +103,8 @@ struct Lane
     std::map<double, LaneSpeed>        s_to_speed;
     std::multimap<double, LaneAccess>  s_to_access; // several restrictions may start at the same s
     std::multimap<double, std::string> s_to_rule;   // OpenDRIVE 1.6.1, 9.7 Specific lane rules, free text
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr

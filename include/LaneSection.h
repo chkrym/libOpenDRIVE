@@ -22,6 +22,8 @@ struct LaneSection
     std::string         road_id = "";
     double              s0 = 0;
     std::map<int, Lane> id_to_lane;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr

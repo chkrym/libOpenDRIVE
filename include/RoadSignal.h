@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include "LaneValidityRecord.h"
 #include "Mesh.h"
 
@@ -141,6 +142,8 @@ struct RoadSignal
     std::vector<RoadSignalElementReference>   references;
     std::optional<RoadSignalPositionInertial> position_inertial;
     std::optional<RoadSignalPositionRoad>     position_road;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
