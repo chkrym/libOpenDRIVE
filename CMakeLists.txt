@@ -24,6 +24,7 @@ if(NOT TARGET pugixml::pugixml)
 endif()
 
 set(SOURCES
+    src/AdditionalData.cpp
     src/Geometries/Arc.cpp
     src/Geometries/CubicSpline.cpp
     src/Geometries/Line.cpp
@@ -44,6 +45,7 @@ set(SOURCES
     src/RoadObject.cpp
     src/RoadSignal.cpp
     src/RoutingGraph.cpp
+    src/SurfaceCRG.cpp
 )
 
 add_library(OpenDrive ${SOURCES})

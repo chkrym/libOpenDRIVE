@@ -1,4 +1,6 @@
 #pragma once
+#include "AdditionalData.h"
+
 #include <optional>
 #include <string>
 
@@ -34,6 +36,8 @@ struct Header
     std::optional<double> west;
 
     std::optional<HeaderOffset> offset;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr

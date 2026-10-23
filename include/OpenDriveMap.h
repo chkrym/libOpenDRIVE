@@ -42,6 +42,7 @@ public:
     RoutingGraph    get_routing_graph() const;
 
     Header            header;
+    AdditionalData    additional_data; // <userData>, <include> and <dataQuality> directly within <OpenDRIVE>
     std::string       proj4 = "";
     double            x_offs = 0;
     double            y_offs = 0;

@@ -6,6 +6,7 @@
 #include "RefLine.h"
 #include "RoadObject.h"
 #include "RoadSignal.h"
+#include "SurfaceCRG.h"
 
 #include <map>
 #include <set>
@@ -141,6 +142,9 @@ public:
     std::map<std::string, RoadBridge> id_to_bridge;
     std::map<std::string, RoadSignal> id_to_signal;
     std::vector<RoadSignalReference>  signal_references; // OpenDRIVE 1.6.1, 12.5, ids may repeat across roads
+
+    std::vector<SurfaceCRG> surface_crgs; // OpenDRIVE 1.6.1, 8.5 <surface><CRG>
+    AdditionalData          additional_data;
 };
 
 } // namespace odr

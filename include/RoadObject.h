@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include "LaneValidityRecord.h"
 #include "Math.hpp"
 #include "Mesh.h"
@@ -226,6 +227,8 @@ struct RoadObject
     std::optional<RoadObjectParkingSpace> parking_space;
     std::vector<RoadObjectMarking>        markings;
     std::vector<RoadObjectBorder>         borders;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
