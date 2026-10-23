@@ -187,6 +187,21 @@ TEST_CASE("Lateral profile shape", "[xodr][lateral_shape]")
 
     REQUIRE(road.get_surface_pt(50.0, 0.0)[2] == Catch::Approx(0.5));
 
+    // dh/dt at s=0: t=-2 -> 0.25, t=2 -> -0.25; the surface normal is tilted accordingly
+    REQUIRE(road.get_lateral_shape_derivative(0.0, -2.0) == Catch::Approx(0.25));
+    REQUIRE(road.get_lateral_shape_derivative(0.0, 2.0) == Catch::Approx(-0.25));
+    REQUIRE(road.get_lateral_shape_derivative(50.0, 2.0) == Catch::Approx(-0.125));
+
+    odr::Vec3D vn{0, 0, 0};
+    road.get_surface_pt(0.0, 2.0, &vn);
+    const double inv_norm = 1.0 / std::sqrt(1.0 + 0.25 * 0.25);
+    REQUIRE(vn[0] == Catch::Approx(0.0).margin(1e-9));
+    REQUIRE(vn[1] == Catch::Approx(0.25 * inv_norm));
+    REQUIRE(vn[2] == Catch::Approx(inv_norm));
+
+    road.get_surface_pt(0.0, -2.0, &vn); // rising towards the crown
+    REQUIRE(vn[1] == Catch::Approx(-0.25 * inv_norm));
+
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
 
