@@ -1,0 +1,67 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="object_extensions" version="1.00"/>
+    <road name="r1" length="200.0" id="1" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="200.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <left>
+                    <lane id="1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </left>
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+        <objects>
+            <object id="10" name="parking" type="parkingSpace" s="20.0" t="-6.0" zOffset="0.0" hdg="0.0" length="5.0" width="2.5" orientation="none">
+                <parkingSpace access="handicapped" restrictions="max 2h"/>
+                <material surface="asphalt" friction="0.8"/>
+                <markings>
+                    <marking side="front" weight="standard" width="0.12" color="white" zOffset="0.005" spaceLength="0.0" lineLength="1.0" startOffset="0.0" stopOffset="0.0"/>
+                </markings>
+            </object>
+            <object id="11" name="island" type="trafficIsland" s="60.0" t="0.0" zOffset="0.0" orientation="none">
+                <outlines>
+                    <outline id="0" outer="true" closed="true">
+                        <cornerRoad id="0" s="58.0" t="-0.5" dz="0.0" height="0.15"/>
+                        <cornerRoad id="1" s="62.0" t="-0.5" dz="0.0" height="0.15"/>
+                        <cornerRoad id="2" s="62.0" t="0.5" dz="0.0" height="0.15"/>
+                        <cornerRoad id="3" s="58.0" t="0.5" dz="0.0" height="0.15"/>
+                    </outline>
+                </outlines>
+                <markings>
+                    <marking weight="bold" width="0.3" color="yellow" zOffset="0.0" spaceLength="0.5" lineLength="0.5" startOffset="0.0" stopOffset="0.0">
+                        <cornerReference id="0"/>
+                        <cornerReference id="1"/>
+                    </marking>
+                </markings>
+                <borders>
+                    <border width="0.2" type="curb" outlineId="0" useCompleteOutline="false">
+                        <cornerReference id="1"/>
+                        <cornerReference id="2"/>
+                    </border>
+                </borders>
+            </object>
+            <objectReference s="100.0" t="2.0" id="crosswalk_7" zOffset="0.0" validLength="0.0" orientation="+">
+                <validity fromLane="1" toLane="1"/>
+            </objectReference>
+            <tunnel s="120.0" length="30.0" name="tunnel_a" id="t1" type="standard" lighting="0.75" daylight="0.25"/>
+            <bridge s="160.0" length="25.0" name="bridge_a" id="b1" type="steel">
+                <validity fromLane="-1" toLane="-1"/>
+            </bridge>
+        </objects>
+    </road>
+</OpenDRIVE>

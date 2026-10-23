@@ -135,6 +135,10 @@ public:
     std::map<double, std::string>     s_to_type;
     std::map<double, SpeedRecord>     s_to_speed;
     std::map<std::string, RoadObject> id_to_object;
+
+    std::vector<RoadObjectReference>  object_references; // OpenDRIVE 1.6.1, 11.8, ids may repeat across roads
+    std::map<std::string, RoadTunnel> id_to_tunnel;
+    std::map<std::string, RoadBridge> id_to_bridge;
     std::map<std::string, RoadSignal> id_to_signal;
 };
 
