@@ -1,0 +1,37 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="lane_border" version="1.00"/>
+    <road name="r1" length="100.0" id="1" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="100.0">
+                <line/>
+            </geometry>
+        </planView>
+        <elevationProfile/>
+        <lateralProfile/>
+        <lanes>
+            <laneSection s="0.0">
+                <left>
+                    <lane id="2" type="driving" level="false">
+                        <border sOffset="0.0" a="7.0" b="0.0" c="0.0" d="0.0"/>
+                        <border sOffset="50.0" a="7.0" b="0.02" c="0.0" d="0.0"/>
+                    </lane>
+                    <lane id="1" type="driving" level="false">
+                        <border sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </left>
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <!-- width takes precedence over border within the same lane group -->
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.0" b="0.0" c="0.0" d="0.0"/>
+                        <border sOffset="0.0" a="-10.0" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+</OpenDRIVE>

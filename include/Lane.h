@@ -63,6 +63,7 @@ struct Lane
     std::optional<int> successor;
 
     CubicProfile lane_width;
+    CubicProfile lane_border; // <border> elements as defined in file (OpenDRIVE >= 1.5), t-position of outer border
     CubicProfile outer_border;
 
     std::map<double, HeightOffset> s_to_height_offset;
