@@ -269,6 +269,22 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
         }
     }
 
+    for (const pugi::xml_node controller_node : odr_node.children("controller"))
+    {
+        const std::string            controller_id = controller_node.attribute("id").as_string("");
+        std::optional<std::uint32_t> sequence;
+        if (const pugi::xml_attribute attr = controller_node.attribute("sequence"))
+            sequence = attr.as_uint();
+
+        Controller& controller =
+            this->id_to_controller.insert({controller_id, Controller(controller_id, controller_node.attribute("name").as_string(""), sequence)})
+                .first->second;
+        for (const pugi::xml_node control_node : controller_node.children("control"))
+        {
+            controller.controls.emplace_back(control_node.attribute("signalId").as_string(""), control_node.attribute("type").as_string(""));
+        }
+    }
+
     odr::check(odr_node.child("road"), "No roads found");
     for (const pugi::xml_node road_node : odr_node.children("road"))
     {
@@ -1126,6 +1142,58 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 }
 
                 road_signal.lane_validities = extract_lane_validity_records(signal_node);
+                road_signal.country_revision = signal_node.attribute("countryRevision").as_string("");
+
+                for (const pugi::xml_node dependency_node : signal_node.children("dependency"))
+                {
+                    road_signal.dependencies.emplace_back(dependency_node.attribute("id").as_string(""),
+                                                          dependency_node.attribute("type").as_string(""));
+                }
+
+                for (const pugi::xml_node reference_node : signal_node.children("reference"))
+                {
+                    road_signal.references.emplace_back(reference_node.attribute("elementType").as_string(""),
+                                                        reference_node.attribute("elementId").as_string(""),
+                                                        reference_node.attribute("type").as_string(""));
+                }
+
+                // OpenDRIVE 1.6.1, 12.4: positionInertial and positionRoad are mutually exclusive
+                const pugi::xml_node position_inertial_node = signal_node.child("positionInertial");
+                const pugi::xml_node position_road_node = signal_node.child("positionRoad");
+                odr::check(!(position_inertial_node && position_road_node),
+                           "Road #%s Signal #%s: both positionInertial and positionRoad defined",
+                           road_id.c_str(),
+                           road_signal_id.c_str());
+                if (position_inertial_node)
+                {
+                    road_signal.position_inertial = RoadSignalPositionInertial(position_inertial_node.attribute("x").as_double(0.0),
+                                                                               position_inertial_node.attribute("y").as_double(0.0),
+                                                                               position_inertial_node.attribute("z").as_double(0.0),
+                                                                               position_inertial_node.attribute("hdg").as_double(0.0),
+                                                                               position_inertial_node.attribute("pitch").as_double(0.0),
+                                                                               position_inertial_node.attribute("roll").as_double(0.0));
+                }
+                if (position_road_node)
+                {
+                    road_signal.position_road = RoadSignalPositionRoad(position_road_node.attribute("roadId").as_string(""),
+                                                                       position_road_node.attribute("s").as_double(0.0),
+                                                                       position_road_node.attribute("t").as_double(0.0),
+                                                                       position_road_node.attribute("zOffset").as_double(0.0),
+                                                                       position_road_node.attribute("hOffset").as_double(0.0),
+                                                                       position_road_node.attribute("pitch").as_double(0.0),
+                                                                       position_road_node.attribute("roll").as_double(0.0));
+                }
+            }
+
+            for (const pugi::xml_node signal_reference_node : road_node.child("signals").children("signalReference"))
+            {
+                RoadSignalReference signal_reference(road_id,
+                                                     signal_reference_node.attribute("id").as_string(""),
+                                                     signal_reference_node.attribute("s").as_double(0.0),
+                                                     signal_reference_node.attribute("t").as_double(0.0),
+                                                     signal_reference_node.attribute("orientation").as_string("none"));
+                signal_reference.lane_validities = extract_lane_validity_records(signal_reference_node);
+                road.signal_references.push_back(signal_reference);
             }
         }
     }
@@ -1159,6 +1227,16 @@ JunctionGroup OpenDriveMap::get_junction_group(const std::string& id) const
 std::vector<JunctionGroup> OpenDriveMap::get_junction_groups() const
 {
     return get_map_values(this->id_to_junction_group);
+}
+
+Controller OpenDriveMap::get_controller(const std::string& id) const
+{
+    return this->id_to_controller.at(id);
+}
+
+std::vector<Controller> OpenDriveMap::get_controllers() const
+{
+    return get_map_values(this->id_to_controller);
 }
 
 const LaneSection* OpenDriveMap::get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const

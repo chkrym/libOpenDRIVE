@@ -7,6 +7,32 @@
 namespace odr
 {
 
+RoadSignalDependency::RoadSignalDependency(std::string id, std::string type) : id(id), type(type) {}
+
+RoadSignalElementReference::RoadSignalElementReference(std::string element_type, std::string element_id, std::string type) :
+    element_type(element_type), element_id(element_id), type(type)
+{
+}
+
+RoadSignalPositionInertial::RoadSignalPositionInertial(double x, double y, double z, double hdg, double pitch, double roll) :
+    x(x), y(y), z(z), hdg(hdg), pitch(pitch), roll(roll)
+{
+}
+
+RoadSignalPositionRoad::RoadSignalPositionRoad(std::string road_id, double s, double t, double z_offset, double h_offset, double pitch, double roll) :
+    road_id(road_id), s(s), t(t), z_offset(z_offset), h_offset(h_offset), pitch(pitch), roll(roll)
+{
+}
+
+RoadSignalReference::RoadSignalReference(std::string road_id, std::string id, double s0, double t0, std::string orientation) :
+    road_id(road_id), id(id), s0(s0), t0(t0), orientation(orientation)
+{
+}
+
+ControllerControl::ControllerControl(std::string signal_id, std::string type) : signal_id(signal_id), type(type) {}
+
+Controller::Controller(std::string id, std::string name, std::optional<std::uint32_t> sequence) : id(id), name(name), sequence(sequence) {}
+
 RoadSignal::RoadSignal(std::string road_id,
                        std::string id,
                        std::string name,
