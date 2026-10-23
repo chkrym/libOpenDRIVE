@@ -125,20 +125,20 @@ TEST_CASE("Poly3 geometry", "[xodr][poly3]")
 {
     odr::OpenDriveMap odr_map("poly3.xodr", false);
 
-    // straight line: start point is offset by v = a, heading 90 degrees
+    // straight line with a != 0: the curve still starts at (@x,@y) with heading @hdg (90 degrees)
     const odr::Road  straight = odr_map.get_road("1");
     const odr::Vec3D start = straight.get_xyz(0.0, 0.0, 0.0);
-    REQUIRE(start[0] == Catch::Approx(8.0));
+    REQUIRE(start[0] == Catch::Approx(10.0));
     REQUIRE(start[1] == Catch::Approx(0.0).margin(1e-9));
     const odr::Vec3D end = straight.get_xyz(50.0, 0.0, 0.0);
-    REQUIRE(end[0] == Catch::Approx(8.0));
+    REQUIRE(end[0] == Catch::Approx(10.0));
     REQUIRE(end[1] == Catch::Approx(50.0));
 
-    // curved: end point lies on v(u) and the reference line length matches @length
+    // curved with a = b = 0: end point lies on v(u) and the reference line length matches @length
     const odr::Road  curved = odr_map.get_road("2");
     const odr::Vec3D curved_end = curved.get_xyz(35.0, 0.0, 0.0);
     const double     u = curved_end[0];
-    REQUIRE(curved_end[1] == Catch::Approx(0.1 * u + 0.002 * u * u - 0.00003 * u * u * u));
+    REQUIRE(curved_end[1] == Catch::Approx(0.002 * u * u - 0.00003 * u * u * u));
 
     double     arc_length = 0.0;
     odr::Vec3D prev = curved.get_xyz(0.0, 0.0, 0.0);
@@ -149,6 +149,21 @@ TEST_CASE("Poly3 geometry", "[xodr][poly3]")
         prev = pt;
     }
     REQUIRE(arc_length == Catch::Approx(35.0).epsilon(1e-4));
+
+    // rotated u/v system with a, b != 0: starts at (@x,@y) with heading @hdg, a straight v(u) stays on the @hdg direction
+    const odr::Road  rotated = odr_map.get_road("3");
+    const odr::Vec3D rotated_start = rotated.get_xyz(0.0, 0.0, 0.0);
+    REQUIRE(rotated_start[0] == Catch::Approx(5.0));
+    REQUIRE(rotated_start[1] == Catch::Approx(5.0));
+    const odr::Vec3D rotated_end = rotated.get_xyz(20.0, 0.0, 0.0);
+    REQUIRE(rotated_end[0] == Catch::Approx(5.0 + 20.0 * std::cos(0.3)));
+    REQUIRE(rotated_end[1] == Catch::Approx(5.0 + 20.0 * std::sin(0.3)));
+
+    // curved with b != 0: start heading equals @hdg
+    const odr::Road  rotated_curved = odr_map.get_road("4");
+    const odr::Vec3D grad = rotated_curved.ref_line.derivative(0.0);
+    REQUIRE(std::atan2(grad[1], grad[0]) == Catch::Approx(0.3));
+    REQUIRE(rotated_curved.get_xyz(0.0, 0.0, 0.0)[0] == Catch::Approx(5.0));
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }

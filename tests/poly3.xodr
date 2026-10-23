@@ -4,7 +4,7 @@
     <road name="straight" length="50.0" id="1" junction="-1">
         <link/>
         <planView>
-            <!-- v(u) = 2, i.e. a straight line offset by 2m to the left of the start point -->
+            <!-- v(u) = 2: u/v origin shifted by 2m along v, the line still starts at (@x,@y) -->
             <geometry s="0.0" x="10.0" y="0.0" hdg="1.5707963267948966" length="50.0">
                 <poly3 a="2.0" b="0.0" c="0.0" d="0.0"/>
             </geometry>
@@ -26,7 +26,47 @@
         <link/>
         <planView>
             <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="35.0">
-                <poly3 a="0.0" b="0.1" c="0.002" d="-0.00003"/>
+                <poly3 a="0.0" b="0.0" c="0.002" d="-0.00003"/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.0" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <road name="rotated" length="20.0" id="3" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="5.0" y="5.0" hdg="0.3" length="20.0">
+                <poly3 a="1.5" b="0.5" c="0.0" d="0.0"/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.0" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <road name="rotated_curved" length="20.0" id="4" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="5.0" y="5.0" hdg="0.3" length="20.0">
+                <poly3 a="-1.0" b="-0.4" c="0.01" d="0.0005"/>
             </geometry>
         </planView>
         <lanes>
