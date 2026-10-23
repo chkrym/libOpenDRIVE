@@ -63,6 +63,44 @@ std::vector<LaneValidityRecord> extract_lane_validity_records(const pugi::xml_no
     return lane_validities;
 }
 
+// OpenDRIVE 1.6.1, 7.6 Cubic polynom (deprecated): v(u) = a + b*u + c*u^2 + d*u^3 in the local u/v frame.
+// The geometry @length is the arc length of the curve, so solve for the u at which that arc length is reached.
+double get_poly3_u_end(const double b, const double c, const double d, const double length)
+{
+    const auto arc_length = [&](const double u_end)
+    {
+        // composite 3-point Gauss-Legendre quadrature of sqrt(1 + v'(u)^2)
+        constexpr std::size_t num_intervals = 64;
+        const double          sqrt_3_5 = std::sqrt(0.6);
+        const double          h = u_end / num_intervals;
+        double                sum = 0.0;
+        for (std::size_t i = 0; i < num_intervals; i++)
+        {
+            const double u_mid = (i + 0.5) * h;
+            for (const auto [x, w] : {std::pair{-sqrt_3_5, 5.0 / 9.0}, std::pair{0.0, 8.0 / 9.0}, std::pair{sqrt_3_5, 5.0 / 9.0}})
+            {
+                const double u = u_mid + 0.5 * h * x;
+                const double dv = b + 2 * c * u + 3 * d * u * u;
+                sum += w * std::sqrt(1.0 + dv * dv);
+            }
+        }
+        return 0.5 * h * sum;
+    };
+
+    // arc_length(u) >= u, so u_end is within [0, length]
+    double u_lo = 0.0;
+    double u_hi = length;
+    for (std::size_t i = 0; i < 100 && (u_hi - u_lo) > 1e-12 * std::max(1.0, length); i++)
+    {
+        const double u_mid = 0.5 * (u_lo + u_hi);
+        if (arc_length(u_mid) < length)
+            u_lo = u_mid;
+        else
+            u_hi = u_mid;
+    }
+    return 0.5 * (u_lo + u_hi);
+}
+
 OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                            const bool         center_map,
                            const bool         with_road_objects,
@@ -299,6 +337,31 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             {
                 const double curvature = geometry_node.attribute("curvature").as_double(0.0);
                 road.ref_line.s0_to_geometry[s0] = std::make_unique<Arc>(s0, x0, y0, hdg0, length, curvature);
+            }
+            else if (geometry_type == "poly3")
+            {
+                const double a = geometry_node.attribute("a").as_double(0.0);
+                const double b = geometry_node.attribute("b").as_double(0.0);
+                const double c = geometry_node.attribute("c").as_double(0.0);
+                const double d = geometry_node.attribute("d").as_double(0.0);
+
+                // OpenDRIVE 1.6.1, 7.6.2: (@x,@y) is located at u=0 on the v-axis, @a shifts the u/v origin along the v-axis and
+                // arctan(@b) is the start heading of the curve w.r.t. the u/v system. So the curve starts at (@x,@y) with heading @hdg:
+                // shift by -a and rotate the u/v system by theta = -arctan(b) relative to @hdg.
+                const double u_end = get_poly3_u_end(b, c, d, length);
+                const double theta = -std::atan(b);
+                const double cos_theta = std::cos(theta);
+                const double sin_theta = std::sin(theta);
+
+                // express as normalized paramPoly3 with p in [0, 1], u = u_end * p:
+                // U(p) = u * cos(theta) - (v(u) - a) * sin(theta), V(p) = u * sin(theta) + (v(u) - a) * cos(theta)
+                const double bU = u_end * (cos_theta - b * sin_theta);
+                const double cU = -c * u_end * u_end * sin_theta;
+                const double dU = -d * u_end * u_end * u_end * sin_theta;
+                const double bV = u_end * (sin_theta + b * cos_theta);
+                const double cV = c * u_end * u_end * cos_theta;
+                const double dV = d * u_end * u_end * u_end * cos_theta;
+                road.ref_line.s0_to_geometry[s0] = std::make_unique<ParamPoly3>(s0, x0, y0, hdg0, length, 0.0, bU, cU, dU, 0.0, bV, cV, dV, true);
             }
             else if (geometry_type == "paramPoly3")
             {
