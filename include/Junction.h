@@ -4,8 +4,10 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace odr
 {
@@ -35,6 +37,18 @@ struct less<odr::JunctionLaneLink>
 namespace odr
 {
 
+// OpenDRIVE 1.6.1, 10.4.1 Virtual connections: predecessor / successor road of a virtual connection
+struct JunctionConnectionLink
+{
+    JunctionConnectionLink(std::string element_type, std::string element_id);
+
+    std::string                element_type = ""; // currently only "road" is allowed
+    std::string                element_id = "";
+    std::optional<double>      element_s;     // s-coordinate where the connection meets the road
+    std::optional<std::string> element_dir;   // "+" or "-", relative to the s-direction of the road
+    std::optional<std::string> contact_point; // "start" or "end"
+};
+
 struct JunctionConnection
 {
     enum class ContactPoint
@@ -50,6 +64,10 @@ struct JunctionConnection
     std::string  incoming_road = "";
     std::string  connecting_road = "";
     ContactPoint contact_point = ContactPoint::None;
+    std::string  type = "default"; // "default" or "virtual"
+
+    std::optional<JunctionConnectionLink> predecessor; // only for virtual connections
+    std::optional<JunctionConnectionLink> successor;   // only for virtual connections
 
     std::set<JunctionLaneLink> lane_links;
 };
@@ -95,10 +113,22 @@ public:
 
     std::string name = "";
     std::string id = "";
+    std::string type = "default"; // "default" or "virtual"
 
     std::map<std::string, JunctionConnection> id_to_connection;
     std::map<std::string, JunctionController> id_to_controller;
     std::set<JunctionPriority>                priorities;
+};
+
+// OpenDRIVE 1.6.1, 10.5 Junction groups, e.g. the junctions of one roundabout
+struct JunctionGroup
+{
+    JunctionGroup(std::string name, std::string id, std::string type);
+
+    std::string              name = "";
+    std::string              id = "";
+    std::string              type = ""; // "roundabout" or "unknown"
+    std::vector<std::string> junction_ids;
 };
 
 } // namespace odr

@@ -26,10 +26,12 @@ public:
                  const bool         fix_spiral_edge_cases = true,
                  const bool         with_road_signals = true);
 
-    Road                  get_road(const std::string& id) const;
-    std::vector<Road>     get_roads() const;
-    Junction              get_junction(const std::string& id) const;
-    std::vector<Junction> get_junctions() const;
+    Road                       get_road(const std::string& id) const;
+    std::vector<Road>          get_roads() const;
+    Junction                   get_junction(const std::string& id) const;
+    std::vector<Junction>      get_junctions() const;
+    JunctionGroup              get_junction_group(const std::string& id) const;
+    std::vector<JunctionGroup> get_junction_groups() const;
 
     const LaneSection* get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const;
     const Lane*        get_adjacent_lane(const Lane& lane, const bool predecessor) const;
@@ -43,8 +45,9 @@ public:
     double            y_offs = 0;
     const std::string xodr_file = "";
 
-    std::map<std::string, Road>     id_to_road;
-    std::map<std::string, Junction> id_to_junction;
+    std::map<std::string, Road>          id_to_road;
+    std::map<std::string, Junction>      id_to_junction;
+    std::map<std::string, JunctionGroup> id_to_junction_group;
 };
 
 } // namespace odr

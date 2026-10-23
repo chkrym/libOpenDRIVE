@@ -5,6 +5,10 @@ namespace odr
 
 JunctionLaneLink::JunctionLaneLink(int from, int to) : from(from), to(to) {}
 
+JunctionConnectionLink::JunctionConnectionLink(std::string element_type, std::string element_id) : element_type(element_type), element_id(element_id)
+{
+}
+
 JunctionConnection::JunctionConnection(std::string id, std::string incoming_road, std::string connecting_road, ContactPoint contact_point) :
     id(id), incoming_road(incoming_road), connecting_road(connecting_road), contact_point(contact_point)
 {
@@ -15,5 +19,7 @@ JunctionPriority::JunctionPriority(std::string high, std::string low) : high(hig
 JunctionController::JunctionController(std::string id, std::string type, std::uint32_t sequence) : id(id), type(type), sequence(sequence) {}
 
 Junction::Junction(std::string name, std::string id) : name(name), id(id) {}
+
+JunctionGroup::JunctionGroup(std::string name, std::string id, std::string type) : name(name), id(id), type(type) {}
 
 } // namespace odr
