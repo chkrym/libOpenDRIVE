@@ -96,3 +96,25 @@ TEST_CASE("Lane border definitions", "[xodr][lane_border]")
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
+
+TEST_CASE("Single side lane sections", "[xodr][single_side]")
+{
+    odr::OpenDriveMap odr_map("single_side.xodr");
+    const odr::Road   road = odr_map.get_road("1");
+
+    const odr::LaneSection ls_single = road.get_lanesection(30.0);
+    REQUIRE(ls_single.id_to_lane.size() == 4);
+
+    // lane #-1 continues from the lane section at s=0
+    const odr::Lane lane_m1 = ls_single.get_lane(-1);
+    REQUIRE(lane_m1.key.lanesection_s0 == 30.0);
+    REQUIRE(lane_m1.outer_border.evaluate(40.0) == Catch::Approx(-4.0));
+    REQUIRE(ls_single.get_lane(2).outer_border.evaluate(40.0) == Catch::Approx(7.0));
+
+    // lane #-1 is connected through all three lane sections
+    const odr::RoutingGraph routing_graph = odr_map.get_routing_graph();
+    const auto              path = routing_graph.shortest_path(odr::LaneKey("1", 0.0, -1), odr::LaneKey("1", 60.0, -1));
+    REQUIRE(path.size() == 3);
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}
