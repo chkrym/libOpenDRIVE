@@ -1,0 +1,52 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="signal_extensions" version="1.00"/>
+    <road name="r1" length="100.0" id="1" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="100.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <left>
+                    <lane id="1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </left>
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+        <objects>
+            <object id="stopline_1" name="stopline" type="roadMark" s="48.0" t="-1.75" zOffset="0.0" orientation="+"/>
+        </objects>
+        <signals>
+            <signal s="50.0" t="-4.0" id="tl_1" name="traffic light" dynamic="yes" orientation="+" zOffset="2.0" country="DE" countryRevision="2017" type="1000001" subtype="-1" height="0.9" width="0.3">
+                <validity fromLane="-1" toLane="-1"/>
+                <dependency id="warn_1" type="warning"/>
+                <reference elementType="object" elementId="stopline_1" type="stopLine"/>
+                <positionInertial x="52.0" y="-6.0" z="5.0" hdg="3.14" pitch="0.0" roll="0.0"/>
+            </signal>
+            <signal s="30.0" t="-4.0" id="warn_1" name="warning light" dynamic="yes" orientation="+" zOffset="2.0" country="DE" type="1000002" subtype="-1">
+                <positionRoad roadId="1" s="31.0" t="-5.0" zOffset="2.5" hOffset="0.1" pitch="0.0" roll="0.0"/>
+            </signal>
+            <signal s="60.0" t="-4.0" id="sign_1" name="speed" dynamic="no" orientation="+" zOffset="2.0" country="DE" type="274" subtype="-1" value="50" unit="km/h"/>
+            <signalReference s="70.0" t="4.0" id="sign_1" orientation="-">
+                <validity fromLane="1" toLane="1"/>
+            </signalReference>
+        </signals>
+    </road>
+    <controller id="ctrl_1" name="main controller" sequence="1">
+        <control signalId="tl_1" type="0"/>
+        <control signalId="warn_1" type="0"/>
+    </controller>
+    <controller id="ctrl_2" name="no sequence"/>
+</OpenDRIVE>

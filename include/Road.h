@@ -140,6 +140,7 @@ public:
     std::map<std::string, RoadTunnel> id_to_tunnel;
     std::map<std::string, RoadBridge> id_to_bridge;
     std::map<std::string, RoadSignal> id_to_signal;
+    std::vector<RoadSignalReference>  signal_references; // OpenDRIVE 1.6.1, 12.5, ids may repeat across roads
 };
 
 } // namespace odr

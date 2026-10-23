@@ -378,3 +378,58 @@ TEST_CASE("Object material, parking space, markings, borders, references, tunnel
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
+
+TEST_CASE("Signal dependency, reference, positioning, signal references and controllers", "[xodr][signals]")
+{
+    const odr::OpenDriveMap odr_map("signal_extensions.xodr");
+    const odr::Road         road = odr_map.get_road("1");
+
+    const odr::RoadSignal& traffic_light = road.id_to_signal.at("tl_1");
+    REQUIRE(traffic_light.is_dynamic);
+    REQUIRE(traffic_light.country_revision == "2017");
+    REQUIRE(traffic_light.dependencies.size() == 1);
+    REQUIRE(traffic_light.dependencies[0].id == "warn_1");
+    REQUIRE(traffic_light.dependencies[0].type == "warning");
+    REQUIRE(traffic_light.references.size() == 1);
+    REQUIRE(traffic_light.references[0].element_type == "object");
+    REQUIRE(traffic_light.references[0].element_id == "stopline_1");
+    REQUIRE(traffic_light.references[0].type == "stopLine");
+    REQUIRE(traffic_light.position_inertial.has_value());
+    REQUIRE(traffic_light.position_inertial->x == 52.0);
+    REQUIRE(traffic_light.position_inertial->y == -6.0);
+    REQUIRE(traffic_light.position_inertial->z == 5.0);
+    REQUIRE(traffic_light.position_inertial->hdg == 3.14);
+    REQUIRE(!traffic_light.position_road.has_value());
+
+    const odr::RoadSignal& warning_light = road.id_to_signal.at("warn_1");
+    REQUIRE(warning_light.country_revision.empty());
+    REQUIRE(warning_light.dependencies.empty());
+    REQUIRE(!warning_light.position_inertial.has_value());
+    REQUIRE(warning_light.position_road.has_value());
+    REQUIRE(warning_light.position_road->road_id == "1");
+    REQUIRE(warning_light.position_road->s == 31.0);
+    REQUIRE(warning_light.position_road->t == -5.0);
+    REQUIRE(warning_light.position_road->z_offset == 2.5);
+    REQUIRE(warning_light.position_road->h_offset == 0.1);
+
+    REQUIRE(road.signal_references.size() == 1);
+    const odr::RoadSignalReference& signal_reference = road.signal_references[0];
+    REQUIRE(signal_reference.id == "sign_1");
+    REQUIRE(signal_reference.s0 == 70.0);
+    REQUIRE(signal_reference.t0 == 4.0);
+    REQUIRE(signal_reference.orientation == "-");
+    REQUIRE(signal_reference.lane_validities.size() == 1);
+    REQUIRE(signal_reference.lane_validities[0].from_lane == 1);
+
+    REQUIRE(odr_map.get_controllers().size() == 2);
+    const odr::Controller controller = odr_map.get_controller("ctrl_1");
+    REQUIRE(controller.name == "main controller");
+    REQUIRE(controller.sequence == 1u);
+    REQUIRE(controller.controls.size() == 2);
+    REQUIRE(controller.controls[0].signal_id == "tl_1");
+    REQUIRE(controller.controls[1].signal_id == "warn_1");
+    REQUIRE(!odr_map.get_controller("ctrl_2").sequence.has_value());
+    REQUIRE(odr_map.get_controller("ctrl_2").controls.empty());
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}
