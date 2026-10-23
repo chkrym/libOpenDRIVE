@@ -213,7 +213,27 @@ Vec3D Road::get_surface_pt(double s, const double t, Vec3D* vn) const
         }
     }
 
+    h_t += this->get_lateral_shape(s, t);
+
     return this->get_xyz(s, t, h_t, nullptr, nullptr, vn);
+}
+
+double Road::get_lateral_shape(const double s, const double t) const
+{
+    // OpenDRIVE 1.6.1, 8.4.3 Shape definition: "Between shape profiles, at specific s-coordinates, the road shape is interpolated
+    // linearly." and "The default value for shape is zero."
+    auto s1_shape_iter = this->s_to_lateral_shape.upper_bound(s);
+    if (s1_shape_iter == this->s_to_lateral_shape.begin())
+        return 0.0;
+
+    const auto   s0_shape_iter = std::prev(s1_shape_iter);
+    const double h0 = s0_shape_iter->second.evaluate(t);
+    if (s1_shape_iter == this->s_to_lateral_shape.end())
+        return h0;
+
+    const double h1 = s1_shape_iter->second.evaluate(t);
+    const double ds = s1_shape_iter->first - s0_shape_iter->first;
+    return h0 + (h1 - h0) * ((s - s0_shape_iter->first) / ds);
 }
 
 std::set<double>
@@ -234,6 +254,11 @@ Road::approximate_lane_border_linear(const Lane& lane, const double s_start, con
 
     std::set<double> s_vals_lane_height = get_map_keys(lane.s_to_height_offset);
     s_vals.insert(s_vals_lane_height.begin(), s_vals_lane_height.end());
+
+    std::set<double> s_vals_lateral_shape = get_map_keys(this->s_to_lateral_shape);
+    for (const double s_shape : s_vals_lateral_shape)
+        if (s_shape > s_start && s_shape < s_end)
+            s_vals.insert(s_shape);
 
     const double     t_max = lane.outer_border.max_value(s_start, s_end);
     std::set<double> s_vals_superelev = this->superelevation.approximate_linear(std::atan(eps / std::abs(t_max)), s_start, s_end);
@@ -293,6 +318,11 @@ Mesh3D Road::get_lane_mesh(const Lane& lane, const double s_start, const double 
 
     std::set<double> s_vals_lane_height = get_map_keys(lane.s_to_height_offset);
     s_vals.insert(s_vals_lane_height.begin(), s_vals_lane_height.end());
+
+    std::set<double> s_vals_lateral_shape = get_map_keys(this->s_to_lateral_shape);
+    for (const double s_shape : s_vals_lateral_shape)
+        if (s_shape > s_start && s_shape < s_end)
+            s_vals.insert(s_shape);
 
     const double     t_max = lane.outer_border.max_value(s_start, s_end);
     std::set<double> s_vals_superelev = this->superelevation.approximate_linear(std::atan(eps / std::abs(t_max)), s_start, s_end);

@@ -111,6 +111,8 @@ public:
     approximate_lane_border_linear(const Lane& lane, const double s_start, const double s_end, const double eps, const bool outer = true) const;
     std::set<double> approximate_lane_border_linear(const Lane& lane, const double eps, const bool outer = true) const;
 
+    double get_lateral_shape(const double s, const double t) const;
+
     double      length = 0;
     std::string id = "";
     std::string junction = "";
@@ -125,6 +127,8 @@ public:
     CubicProfile superelevation;
     Crossfall    crossfall;
     RefLine      ref_line;
+
+    std::map<double /*s0*/, CubicProfile /*polys over t*/> s_to_lateral_shape;
 
     std::map<double, LaneSection>     s_to_lanesection;
     std::map<double, std::string>     s_to_type;

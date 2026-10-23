@@ -167,3 +167,25 @@ TEST_CASE("Poly3 geometry", "[xodr][poly3]")
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
+
+TEST_CASE("Lateral profile shape", "[xodr][lateral_shape]")
+{
+    odr::OpenDriveMap odr_map("lateral_shape.xodr", false);
+    const odr::Road   road = odr_map.get_road("1");
+
+    REQUIRE(road.s_to_lateral_shape.size() == 2);
+
+    // s=0: h(t=-4)=0, h(t=-2)=0.25, h(t=0)=1, h(t=2)=0.75
+    REQUIRE(road.get_lateral_shape(0.0, -4.0) == Catch::Approx(0.0).margin(1e-9));
+    REQUIRE(road.get_lateral_shape(0.0, -2.0) == Catch::Approx(0.25));
+    REQUIRE(road.get_lateral_shape(0.0, 0.0) == Catch::Approx(1.0));
+    REQUIRE(road.get_lateral_shape(0.0, 2.0) == Catch::Approx(0.75));
+
+    // linear interpolation towards the flat profile at s=100
+    REQUIRE(road.get_lateral_shape(50.0, 0.0) == Catch::Approx(0.5));
+    REQUIRE(road.get_lateral_shape(100.0, 0.0) == Catch::Approx(0.0).margin(1e-9));
+
+    REQUIRE(road.get_surface_pt(50.0, 0.0)[2] == Catch::Approx(0.5));
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}
