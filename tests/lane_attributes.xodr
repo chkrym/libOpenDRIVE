@@ -3,6 +3,9 @@
     <header revMajor="1" revMinor="6" name="lane_attributes" version="1.00"/>
     <road name="r1" length="100.0" id="1" junction="-1">
         <link/>
+        <type s="0.0" type="town">
+            <speed max="50"/>
+        </type>
         <planView>
             <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="100.0">
                 <line/>

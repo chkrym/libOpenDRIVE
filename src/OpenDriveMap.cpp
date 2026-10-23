@@ -355,7 +355,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             if (const pugi::xml_node node = road_type_node.child("speed"))
             {
                 const std::string speed_record_max = node.attribute("max").as_string("");
-                const std::string speed_record_unit = node.attribute("unit").as_string("");
+                const std::string speed_record_unit = node.attribute("unit").as_string("m/s");
                 SpeedRecord       speed_record(speed_record_max, speed_record_unit);
                 road.s_to_speed.insert({s, speed_record});
             }
