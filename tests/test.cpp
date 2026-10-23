@@ -318,3 +318,63 @@ TEST_CASE("Virtual junctions and junction groups", "[xodr][junction]")
     // routing graph must not break on virtual connections
     (void)odr_map.get_routing_graph();
 }
+
+TEST_CASE("Object material, parking space, markings, borders, references, tunnels and bridges", "[xodr][objects]")
+{
+    const odr::OpenDriveMap odr_map("object_extensions.xodr");
+    const odr::Road         road = odr_map.get_road("1");
+
+    const odr::RoadObject& parking = road.id_to_object.at("10");
+    REQUIRE(parking.parking_space.has_value());
+    REQUIRE(parking.parking_space->access == "handicapped");
+    REQUIRE(parking.parking_space->restrictions == "max 2h");
+    REQUIRE(parking.materials.size() == 1);
+    REQUIRE(parking.materials[0].surface == "asphalt");
+    REQUIRE(parking.materials[0].friction == 0.8);
+    REQUIRE(!parking.materials[0].roughness.has_value());
+    REQUIRE(parking.markings.size() == 1);
+    REQUIRE(parking.markings[0].side == "front");
+    REQUIRE(parking.markings[0].width == 0.12);
+    REQUIRE(parking.markings[0].color == "white");
+    REQUIRE(parking.markings[0].line_length == 1.0);
+    REQUIRE(parking.markings[0].corner_references.empty());
+
+    const odr::RoadObject& island = road.id_to_object.at("11");
+    REQUIRE(!island.parking_space.has_value());
+    REQUIRE(island.markings.size() == 1);
+    REQUIRE(island.markings[0].weight == "bold");
+    REQUIRE(island.markings[0].corner_references == std::vector<int>{0, 1});
+    REQUIRE(island.borders.size() == 1);
+    REQUIRE(island.borders[0].type == "curb");
+    REQUIRE(island.borders[0].width == 0.2);
+    REQUIRE(island.borders[0].outline_id == 0);
+    REQUIRE(!island.borders[0].use_complete_outline);
+    REQUIRE(island.borders[0].corner_references == std::vector<int>{1, 2});
+
+    REQUIRE(road.object_references.size() == 1);
+    const odr::RoadObjectReference& object_reference = road.object_references[0];
+    REQUIRE(object_reference.id == "crosswalk_7");
+    REQUIRE(object_reference.s0 == 100.0);
+    REQUIRE(object_reference.t0 == 2.0);
+    REQUIRE(object_reference.orientation == "+");
+    REQUIRE(object_reference.lane_validities.size() == 1);
+    REQUIRE(object_reference.lane_validities[0].from_lane == 1);
+
+    const odr::RoadTunnel& tunnel = road.id_to_tunnel.at("t1");
+    REQUIRE(tunnel.s0 == 120.0);
+    REQUIRE(tunnel.length == 30.0);
+    REQUIRE(tunnel.name == "tunnel_a");
+    REQUIRE(tunnel.type == "standard");
+    REQUIRE(tunnel.lighting == 0.75);
+    REQUIRE(tunnel.daylight == 0.25);
+    REQUIRE(tunnel.lane_validities.empty());
+
+    const odr::RoadBridge& bridge = road.id_to_bridge.at("b1");
+    REQUIRE(bridge.s0 == 160.0);
+    REQUIRE(bridge.length == 25.0);
+    REQUIRE(bridge.type == "steel");
+    REQUIRE(bridge.lane_validities.size() == 1);
+    REQUIRE(bridge.lane_validities[0].to_lane == -1);
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}

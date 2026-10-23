@@ -41,6 +41,55 @@ RoadObjectOutline::RoadObjectOutline(int id, std::string fill_type, std::string 
 {
 }
 
+RoadObjectMaterial::RoadObjectMaterial(std::string surface, std::optional<double> friction, std::optional<double> roughness) :
+    surface(surface), friction(friction), roughness(roughness)
+{
+}
+
+RoadObjectParkingSpace::RoadObjectParkingSpace(std::string access, std::string restrictions) : access(access), restrictions(restrictions) {}
+
+RoadObjectMarking::RoadObjectMarking(std::string side,
+                                     std::string weight,
+                                     double      width,
+                                     std::string color,
+                                     double      z_offset,
+                                     double      space_length,
+                                     double      line_length,
+                                     double      start_offset,
+                                     double      stop_offset) :
+    side(side),
+    weight(weight),
+    width(width),
+    color(color),
+    z_offset(z_offset),
+    space_length(space_length),
+    line_length(line_length),
+    start_offset(start_offset),
+    stop_offset(stop_offset)
+{
+}
+
+RoadObjectBorder::RoadObjectBorder(double width, std::string type, int outline_id, bool use_complete_outline) :
+    width(width), type(type), outline_id(outline_id), use_complete_outline(use_complete_outline)
+{
+}
+
+RoadObjectReference::RoadObjectReference(
+    std::string road_id, std::string id, double s0, double t0, double z_offset, double valid_length, std::string orientation) :
+    road_id(road_id), id(id), s0(s0), t0(t0), z_offset(z_offset), valid_length(valid_length), orientation(orientation)
+{
+}
+
+RoadTunnel::RoadTunnel(std::string road_id, std::string id, double s0, double length, std::string name, std::string type) :
+    road_id(road_id), id(id), s0(s0), length(length), name(name), type(type)
+{
+}
+
+RoadBridge::RoadBridge(std::string road_id, std::string id, double s0, double length, std::string name, std::string type) :
+    road_id(road_id), id(id), s0(s0), length(length), name(name), type(type)
+{
+}
+
 RoadObject::RoadObject(std::string road_id,
                        std::string id,
                        double      s0,

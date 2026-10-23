@@ -3,6 +3,7 @@
 #include "Math.hpp"
 #include "Mesh.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -66,6 +67,112 @@ struct RoadObjectOutline
     std::vector<RoadObjectCorner> outline;
 };
 
+// OpenDRIVE 1.6.1, 11.3 Object material
+struct RoadObjectMaterial
+{
+    RoadObjectMaterial(std::string surface, std::optional<double> friction, std::optional<double> roughness);
+
+    std::string           surface = "";
+    std::optional<double> friction;
+    std::optional<double> roughness;
+};
+
+// OpenDRIVE 1.6.1, 11.5 Access rules to parking spaces
+struct RoadObjectParkingSpace
+{
+    RoadObjectParkingSpace(std::string access, std::string restrictions);
+
+    std::string access = "";       // e.g. "all", "car", "handicapped", "bus"
+    std::string restrictions = ""; // free text
+};
+
+// OpenDRIVE 1.6.1, 11.6 Object marking
+struct RoadObjectMarking
+{
+    RoadObjectMarking(std::string side,
+                      std::string weight,
+                      double      width,
+                      std::string color,
+                      double      z_offset,
+                      double      space_length,
+                      double      line_length,
+                      double      start_offset,
+                      double      stop_offset);
+
+    std::string side = "";   // side of the bounding box, if no outline points are referenced
+    std::string weight = ""; // "standard" or "bold"
+    double      width = 0;
+    std::string color = "";
+    double      z_offset = 0;
+    double      space_length = 0;
+    double      line_length = 0;
+    double      start_offset = 0;
+    double      stop_offset = 0;
+
+    std::vector<int> corner_references; // ids of outline points
+};
+
+// OpenDRIVE 1.6.1, 11.7 Object borders
+struct RoadObjectBorder
+{
+    RoadObjectBorder(double width, std::string type, int outline_id, bool use_complete_outline);
+
+    double      width = 0;
+    std::string type = ""; // e.g. "concrete", "curb"
+    int         outline_id = 0;
+    bool        use_complete_outline = true;
+
+    std::vector<int> corner_references; // ids of outline points, if not use_complete_outline
+};
+
+// OpenDRIVE 1.6.1, 11.8 Object reference
+struct RoadObjectReference
+{
+    RoadObjectReference(std::string road_id, std::string id, double s0, double t0, double z_offset, double valid_length, std::string orientation);
+
+    std::string road_id = "";
+    std::string id = ""; // id of the referenced object
+    double      s0 = 0;
+    double      t0 = 0;
+    double      z_offset = 0;
+    double      valid_length = 0;
+    std::string orientation = "";
+
+    std::vector<LaneValidityRecord> lane_validities;
+};
+
+// OpenDRIVE 1.6.1, 11.9 Tunnels
+struct RoadTunnel
+{
+    RoadTunnel(std::string road_id, std::string id, double s0, double length, std::string name, std::string type);
+
+    std::string           road_id = "";
+    std::string           id = "";
+    double                s0 = 0;
+    double                length = 0;
+    std::string           name = "";
+    std::string           type = ""; // "standard" or "underpass"
+    std::optional<double> lighting;  // [0;1]
+    std::optional<double> daylight;  // [0;1]
+
+    std::vector<LaneValidityRecord> lane_validities;
+};
+
+// OpenDRIVE 1.6.1, 11.10 Bridges
+struct RoadBridge
+{
+    RoadBridge(std::string road_id, std::string id, double s0, double length, std::string name, std::string type);
+
+    std::string road_id = "";
+    std::string id = "";
+    double      s0 = 0;
+    double      length = 0;
+    std::string name = "";
+    std::string type = ""; // "concrete", "steel", "brick" or "wood"
+
+    std::vector<LaneValidityRecord> lane_validities;
+};
+
 struct RoadObject
 {
     RoadObject(std::string road_id,
@@ -114,6 +221,11 @@ struct RoadObject
     std::vector<RoadObjectRepeat>   repeats;
     std::vector<RoadObjectOutline>  outlines;
     std::vector<LaneValidityRecord> lane_validities;
+
+    std::vector<RoadObjectMaterial>       materials;
+    std::optional<RoadObjectParkingSpace> parking_space;
+    std::vector<RoadObjectMarking>        markings;
+    std::vector<RoadObjectBorder>         borders;
 };
 
 } // namespace odr

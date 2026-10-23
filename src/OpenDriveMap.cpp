@@ -987,6 +987,93 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 }
 
                 road_object.lane_validities = extract_lane_validity_records(object_node);
+
+                for (const pugi::xml_node material_node : object_node.children("material"))
+                {
+                    std::optional<double> friction;
+                    std::optional<double> roughness;
+                    if (const pugi::xml_attribute attr = material_node.attribute("friction"))
+                        friction = attr.as_double();
+                    if (const pugi::xml_attribute attr = material_node.attribute("roughness"))
+                        roughness = attr.as_double();
+                    road_object.materials.emplace_back(material_node.attribute("surface").as_string(""), friction, roughness);
+                }
+
+                if (const pugi::xml_node parking_space_node = object_node.child("parkingSpace"))
+                {
+                    road_object.parking_space = RoadObjectParkingSpace(parking_space_node.attribute("access").as_string(""),
+                                                                       parking_space_node.attribute("restrictions").as_string(""));
+                }
+
+                for (const pugi::xml_node marking_node : object_node.child("markings").children("marking"))
+                {
+                    RoadObjectMarking marking(marking_node.attribute("side").as_string(""),
+                                              marking_node.attribute("weight").as_string("standard"),
+                                              marking_node.attribute("width").as_double(0.0),
+                                              marking_node.attribute("color").as_string(""),
+                                              marking_node.attribute("zOffset").as_double(0.0),
+                                              marking_node.attribute("spaceLength").as_double(0.0),
+                                              marking_node.attribute("lineLength").as_double(0.0),
+                                              marking_node.attribute("startOffset").as_double(0.0),
+                                              marking_node.attribute("stopOffset").as_double(0.0));
+                    for (const pugi::xml_node corner_reference_node : marking_node.children("cornerReference"))
+                        marking.corner_references.push_back(corner_reference_node.attribute("id").as_int(-1));
+                    road_object.markings.push_back(marking);
+                }
+
+                for (const pugi::xml_node border_node : object_node.child("borders").children("border"))
+                {
+                    RoadObjectBorder border(border_node.attribute("width").as_double(0.0),
+                                            border_node.attribute("type").as_string(""),
+                                            border_node.attribute("outlineId").as_int(-1),
+                                            border_node.attribute("useCompleteOutline").as_bool(true));
+                    for (const pugi::xml_node corner_reference_node : border_node.children("cornerReference"))
+                        border.corner_references.push_back(corner_reference_node.attribute("id").as_int(-1));
+                    road_object.borders.push_back(border);
+                }
+            }
+
+            for (const pugi::xml_node object_reference_node : road_node.child("objects").children("objectReference"))
+            {
+                RoadObjectReference object_reference(road_id,
+                                                     object_reference_node.attribute("id").as_string(""),
+                                                     object_reference_node.attribute("s").as_double(0.0),
+                                                     object_reference_node.attribute("t").as_double(0.0),
+                                                     object_reference_node.attribute("zOffset").as_double(0.0),
+                                                     object_reference_node.attribute("validLength").as_double(0.0),
+                                                     object_reference_node.attribute("orientation").as_string("none"));
+                object_reference.lane_validities = extract_lane_validity_records(object_reference_node);
+                road.object_references.push_back(object_reference);
+            }
+
+            for (const pugi::xml_node tunnel_node : road_node.child("objects").children("tunnel"))
+            {
+                const std::string tunnel_id = tunnel_node.attribute("id").as_string("");
+                RoadTunnel        tunnel(road_id,
+                                  tunnel_id,
+                                  tunnel_node.attribute("s").as_double(0.0),
+                                  tunnel_node.attribute("length").as_double(0.0),
+                                  tunnel_node.attribute("name").as_string(""),
+                                  tunnel_node.attribute("type").as_string(""));
+                if (const pugi::xml_attribute attr = tunnel_node.attribute("lighting"))
+                    tunnel.lighting = attr.as_double();
+                if (const pugi::xml_attribute attr = tunnel_node.attribute("daylight"))
+                    tunnel.daylight = attr.as_double();
+                tunnel.lane_validities = extract_lane_validity_records(tunnel_node);
+                road.id_to_tunnel.insert({tunnel_id, tunnel});
+            }
+
+            for (const pugi::xml_node bridge_node : road_node.child("objects").children("bridge"))
+            {
+                const std::string bridge_id = bridge_node.attribute("id").as_string("");
+                RoadBridge        bridge(road_id,
+                                  bridge_id,
+                                  bridge_node.attribute("s").as_double(0.0),
+                                  bridge_node.attribute("length").as_double(0.0),
+                                  bridge_node.attribute("name").as_string(""),
+                                  bridge_node.attribute("type").as_string(""));
+                bridge.lane_validities = extract_lane_validity_records(bridge_node);
+                road.id_to_bridge.insert({bridge_id, bridge});
             }
         }
         /* parse signals */
