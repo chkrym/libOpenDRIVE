@@ -9,6 +9,15 @@ namespace odr
 
 HeightOffset::HeightOffset(double inner, double outer) : inner(inner), outer(outer) {}
 
+LaneMaterial::LaneMaterial(std::string surface, std::optional<double> friction, std::optional<double> roughness) :
+    surface(surface), friction(friction), roughness(roughness)
+{
+}
+
+LaneSpeed::LaneSpeed(double max, std::string unit) : max(max), unit(unit) {}
+
+LaneAccess::LaneAccess(std::string rule, std::string restriction) : rule(rule), restriction(restriction) {}
+
 LaneKey::LaneKey(std::string road_id, double lanesection_s0, int lane_id) : road_id(road_id), lanesection_s0(lanesection_s0), lane_id(lane_id) {}
 
 std::string LaneKey::to_string() const

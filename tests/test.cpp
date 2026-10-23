@@ -234,3 +234,42 @@ TEST_CASE("Header attributes and offset", "[xodr][header]")
     REQUIRE(!other_map.header.offset.has_value());
     REQUIRE(!other_map.header.north.has_value());
 }
+
+TEST_CASE("Lane material, speed, access and rule", "[xodr][lane_attributes]")
+{
+    const odr::OpenDriveMap odr_map("lane_attributes.xodr");
+    const odr::Road         road = odr_map.get_road("1");
+
+    const odr::Lane lane_0 = road.get_lanesection(0.0).get_lane(-1);
+    REQUIRE(lane_0.s_to_material.size() == 1);
+    const odr::LaneMaterial& material_0 = lane_0.s_to_material.at(0.0);
+    REQUIRE(material_0.surface == "asphalt");
+    REQUIRE(material_0.friction == 0.9);
+    REQUIRE(material_0.roughness == 0.1);
+    REQUIRE(lane_0.s_to_speed.at(0.0).max == 80.0);
+    REQUIRE(lane_0.s_to_speed.at(0.0).unit == "km/h");
+    REQUIRE(lane_0.s_to_access.empty());
+    REQUIRE(lane_0.s_to_rule.empty());
+
+    // records are keyed by absolute s (lane section s0 + sOffset)
+    const odr::Lane lane_40 = road.get_lanesection(40.0).get_lane(-1);
+    REQUIRE(lane_40.s_to_material.size() == 2);
+    REQUIRE(lane_40.s_to_material.at(40.0).surface == "concrete");
+    REQUIRE(!lane_40.s_to_material.at(40.0).friction.has_value());
+    REQUIRE(lane_40.s_to_material.at(60.0).friction == 0.7);
+
+    REQUIRE(lane_40.s_to_speed.size() == 1);
+    REQUIRE(lane_40.s_to_speed.at(50.0).max == Catch::Approx(13.9));
+    REQUIRE(lane_40.s_to_speed.at(50.0).unit == "m/s");
+
+    REQUIRE(lane_40.s_to_access.size() == 3);
+    REQUIRE(lane_40.s_to_access.count(40.0) == 2);
+    const auto access_70 = lane_40.s_to_access.find(70.0);
+    REQUIRE(access_70 != lane_40.s_to_access.end());
+    REQUIRE(access_70->second.rule == "deny");
+    REQUIRE(access_70->second.restriction == "pedestrian");
+
+    REQUIRE(lane_40.s_to_rule.size() == 1);
+    REQUIRE(lane_40.s_to_rule.begin()->first == 40.0);
+    REQUIRE(lane_40.s_to_rule.begin()->second == "no stopping at any time");
+}

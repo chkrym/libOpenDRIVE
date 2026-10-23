@@ -23,6 +23,34 @@ struct HeightOffset
     double outer = 0;
 };
 
+// OpenDRIVE 1.6.1, 9.5.4 Lane material
+struct LaneMaterial
+{
+    LaneMaterial(std::string surface, std::optional<double> friction, std::optional<double> roughness);
+
+    std::string           surface = "";
+    std::optional<double> friction;
+    std::optional<double> roughness;
+};
+
+// OpenDRIVE 1.6.1, 9.5.5 Lane speed limit
+struct LaneSpeed
+{
+    LaneSpeed(double max, std::string unit);
+
+    double      max = 0;
+    std::string unit = "";
+};
+
+// OpenDRIVE 1.6.1, 9.5.6 Lane access
+struct LaneAccess
+{
+    LaneAccess(std::string rule, std::string restriction);
+
+    std::string rule = "";        // "allow" or "deny"
+    std::string restriction = ""; // e.g. "bus", "truck", "pedestrian"
+};
+
 struct LaneKey
 {
     LaneKey(std::string road_id, double lanesection_s0, int lane_id);
@@ -68,6 +96,12 @@ struct Lane
 
     std::map<double, HeightOffset> s_to_height_offset;
     std::set<RoadMarkGroup>        roadmark_groups;
+
+    // keyed by absolute s position (lane section s0 + sOffset), each record is valid until the next one or the end of the lane section
+    std::map<double, LaneMaterial>     s_to_material;
+    std::map<double, LaneSpeed>        s_to_speed;
+    std::multimap<double, LaneAccess>  s_to_access; // several restrictions may start at the same s
+    std::multimap<double, std::string> s_to_rule;   // OpenDRIVE 1.6.1, 9.7 Specific lane rules, free text
 };
 
 } // namespace odr

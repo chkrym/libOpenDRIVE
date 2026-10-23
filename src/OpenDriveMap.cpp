@@ -544,6 +544,54 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                     lane.lane_width.segments[s0 + s_offset] = width_poly;
                 }
 
+                /* parse lane material, speed, access and rule records */
+                const auto get_record_s0 = [&](const pugi::xml_node& node, const char* record_name)
+                {
+                    double s_offset = node.attribute("sOffset").as_double(0.0);
+                    odr::check_and_repair(
+                        s_offset >= 0,
+                        [&]() { s_offset = 0; },
+                        "Road #%s LaneSection %f Lane #%d: %s::sOffset %f < 0, set sOffset=0",
+                        road_id.c_str(),
+                        s0,
+                        lane_id,
+                        record_name,
+                        s_offset);
+                    return s0 + s_offset;
+                };
+
+                const auto get_optional_double = [](const pugi::xml_node& node, const char* attr_name) -> std::optional<double>
+                {
+                    if (const pugi::xml_attribute attr = node.attribute(attr_name))
+                        return attr.as_double();
+                    return std::nullopt;
+                };
+
+                for (const pugi::xml_node material_node : lane_node.children("material"))
+                {
+                    lane.s_to_material.insert_or_assign(get_record_s0(material_node, "material"),
+                                                        LaneMaterial(material_node.attribute("surface").as_string(""),
+                                                                     get_optional_double(material_node, "friction"),
+                                                                     get_optional_double(material_node, "roughness")));
+                }
+
+                for (const pugi::xml_node speed_node : lane_node.children("speed"))
+                {
+                    lane.s_to_speed.insert_or_assign(
+                        get_record_s0(speed_node, "speed"),
+                        LaneSpeed(speed_node.attribute("max").as_double(0.0), speed_node.attribute("unit").as_string("m/s")));
+                }
+
+                for (const pugi::xml_node access_node : lane_node.children("access"))
+                {
+                    lane.s_to_access.emplace(
+                        get_record_s0(access_node, "access"),
+                        LaneAccess(access_node.attribute("rule").as_string(""), access_node.attribute("restriction").as_string("")));
+                }
+
+                for (const pugi::xml_node rule_node : lane_node.children("rule"))
+                    lane.s_to_rule.emplace(get_record_s0(rule_node, "rule"), rule_node.attribute("value").as_string(""));
+
                 for (const pugi::xml_node lane_border_node : lane_node.children("border"))
                 {
                     double       s_offset = lane_border_node.attribute("sOffset").as_double(0.0);
