@@ -433,3 +433,38 @@ TEST_CASE("Signal dependency, reference, positioning, signal references and cont
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
+
+TEST_CASE("Road mark explicit lines and sway", "[xodr][roadmark]")
+{
+    const odr::OpenDriveMap odr_map("roadmark_explicit_sway.xodr", false);
+    const odr::Road         road = odr_map.get_road("1");
+    const odr::Lane         lane = road.get_lanesection(0.0).get_lane(-1);
+
+    // explicit lines are not repeated: two road marks within [0, 50)
+    const std::vector<odr::RoadMark> explicit_roadmarks = lane.get_roadmarks(0.0, 50.0);
+    REQUIRE(explicit_roadmarks.size() == 2);
+    REQUIRE(explicit_roadmarks[0].s_start == 0.0);
+    REQUIRE(explicit_roadmarks[0].s_end == 3.0);
+    REQUIRE(explicit_roadmarks[0].width == 0.2); // falls back to <roadMark> @width
+    REQUIRE(explicit_roadmarks[1].s_start == 10.0);
+    REQUIRE(explicit_roadmarks[1].s_end == 12.0);
+    REQUIRE(explicit_roadmarks[1].width == 0.15);
+    REQUIRE(explicit_roadmarks[1].t_offset == 0.1);
+
+    // sway shifts the solid road mark from s=50: constant 0.5 until s=70, then linearly back to 0 at s=90
+    const std::vector<odr::RoadMark> sway_roadmarks = lane.get_roadmarks(50.0, 100.0);
+    REQUIRE(sway_roadmarks.size() == 1);
+    const odr::RoadMark& swayed = sway_roadmarks[0];
+    REQUIRE(swayed.sway.evaluate(60.0, 0.0, false) == Catch::Approx(0.5));
+    REQUIRE(swayed.sway.evaluate(80.0, 0.0, false) == Catch::Approx(0.25));
+    REQUIRE(swayed.sway.evaluate(90.0, 0.0, false) == Catch::Approx(0.0).margin(1e-9));
+
+    const odr::Mesh3D mesh = road.get_roadmark_mesh(lane, swayed, 0.1);
+    REQUIRE(!mesh.vertices.empty());
+    // first vertex pair at s=50: lane border at t=-3.5, half width 0.06, sway 0.5
+    REQUIRE(mesh.vertices[0][0] == Catch::Approx(50.0));
+    REQUIRE(mesh.vertices[0][1] == Catch::Approx(-3.5 + 0.06 + 0.5));
+    REQUIRE(mesh.vertices[1][1] == Catch::Approx(-3.5 - 0.06 + 0.5));
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}

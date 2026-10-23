@@ -59,8 +59,34 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                                 ? s_end
                                                 : std::min(std::next(rm_group_iter)->lanesection_s0 + std::next(rm_group_iter)->s_offset, s_end);
 
+        const std::size_t num_roadmarks_before_group = roadmarks.size();
+
         double width = roadmark_group.weight == "bold" ? ROADMARK_WEIGHT_BOLD_WIDTH : ROADMARK_WEIGHT_STANDARD_WIDTH;
-        if (roadmark_group.roadmark_lines.empty())
+        if (!roadmark_group.roadmark_explicit_lines.empty())
+        {
+            // explicit line @width supersedes the <roadMark> @width
+            const double group_width = roadmark_group.width > 0 ? roadmark_group.width : width;
+            // OpenDRIVE 1.6.1, 9.6.2: explicit lines are not repeated
+            for (const RoadMarksLine& roadmarks_line : roadmark_group.roadmark_explicit_lines)
+            {
+                const double s0_roadmarks_line = roadmarks_line.group_s0 + roadmarks_line.s_offset;
+                const double s_start_single_roadmark = std::max(s0_roadmarks_line, s_start_roadmark_group);
+                const double s_end_single_roadmark = std::min(s0_roadmarks_line + roadmarks_line.length, s_end_roadmark_group);
+                if (s_end_single_roadmark <= s_start_single_roadmark)
+                    continue;
+
+                roadmarks.push_back(RoadMark(this->key.road_id,
+                                             this->key.lanesection_s0,
+                                             this->id,
+                                             roadmarks_line.group_s0,
+                                             s_start_single_roadmark,
+                                             s_end_single_roadmark,
+                                             roadmarks_line.t_offset,
+                                             roadmarks_line.width > 0 ? roadmarks_line.width : group_width,
+                                             roadmark_group.type + roadmarks_line.name));
+            }
+        }
+        else if (roadmark_group.roadmark_lines.empty())
         {
             if (roadmark_group.width > 0)
                 width = roadmark_group.width;
@@ -102,6 +128,9 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                 }
             }
         }
+
+        for (auto rm_iter = std::next(roadmarks.begin(), num_roadmarks_before_group); rm_iter != roadmarks.end(); rm_iter++)
+            rm_iter->sway = roadmark_group.sway;
     }
 
     return roadmarks;
