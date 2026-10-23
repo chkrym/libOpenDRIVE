@@ -240,6 +240,9 @@ TEST_CASE("Lane material, speed, access and rule", "[xodr][lane_attributes]")
     const odr::OpenDriveMap odr_map("lane_attributes.xodr");
     const odr::Road         road = odr_map.get_road("1");
 
+    // road type speed without unit defaults to m/s as well (OpenDRIVE 1.6.1, 2.3.2)
+    REQUIRE(road.s_to_speed.at(0.0).unit == "m/s");
+
     const odr::Lane lane_0 = road.get_lanesection(0.0).get_lane(-1);
     REQUIRE(lane_0.s_to_material.size() == 1);
     const odr::LaneMaterial& material_0 = lane_0.s_to_material.at(0.0);
@@ -272,4 +275,46 @@ TEST_CASE("Lane material, speed, access and rule", "[xodr][lane_attributes]")
     REQUIRE(lane_40.s_to_rule.size() == 1);
     REQUIRE(lane_40.s_to_rule.begin()->first == 40.0);
     REQUIRE(lane_40.s_to_rule.begin()->second == "no stopping at any time");
+}
+
+TEST_CASE("Virtual junctions and junction groups", "[xodr][junction]")
+{
+    const odr::OpenDriveMap odr_map("junction_virtual_group.xodr");
+
+    const odr::Junction regular = odr_map.get_junction("600");
+    REQUIRE(regular.type == "default");
+    REQUIRE(regular.id_to_connection.at("0").type == "default");
+    REQUIRE(regular.id_to_connection.at("0").contact_point == odr::JunctionConnection::ContactPoint::Start);
+    REQUIRE(!regular.id_to_connection.at("0").predecessor.has_value());
+
+    const odr::Junction virtual_junction = odr_map.get_junction("555");
+    REQUIRE(virtual_junction.type == "virtual");
+    REQUIRE(virtual_junction.id_to_connection.size() == 2);
+
+    const odr::JunctionConnection& conn_3 = virtual_junction.id_to_connection.at("3");
+    REQUIRE(conn_3.type == "virtual");
+    REQUIRE(conn_3.contact_point == odr::JunctionConnection::ContactPoint::None);
+    REQUIRE(conn_3.predecessor.has_value());
+    REQUIRE(conn_3.predecessor->element_type == "road");
+    REQUIRE(conn_3.predecessor->element_id == "99");
+    REQUIRE(conn_3.predecessor->contact_point == "end");
+    REQUIRE(!conn_3.predecessor->element_s.has_value());
+    REQUIRE(conn_3.successor.has_value());
+    REQUIRE(conn_3.successor->element_id == "1");
+    REQUIRE(conn_3.successor->element_s == 60.0);
+    REQUIRE(conn_3.successor->element_dir == "-");
+    REQUIRE(conn_3.lane_links.size() == 1);
+
+    const odr::JunctionConnection& conn_5 = virtual_junction.id_to_connection.at("5");
+    REQUIRE(conn_5.predecessor->element_s == 70.0);
+    REQUIRE(conn_5.successor->contact_point == "end");
+
+    REQUIRE(odr_map.get_junction_groups().size() == 1);
+    const odr::JunctionGroup group = odr_map.get_junction_group("A");
+    REQUIRE(group.name == "roundabout_a");
+    REQUIRE(group.type == "roundabout");
+    REQUIRE(group.junction_ids == std::vector<std::string>{"555", "600"});
+
+    // routing graph must not break on virtual connections
+    (void)odr_map.get_routing_graph();
 }

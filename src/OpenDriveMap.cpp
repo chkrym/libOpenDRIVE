@@ -168,18 +168,27 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
         Junction& junction =
             this->id_to_junction.insert({junction_id, Junction(junction_node.attribute("name").as_string(""), junction_id)}).first->second;
+        junction.type = junction_node.attribute("type").as_string("default");
 
         for (const pugi::xml_node connection_node : junction_node.children("connection"))
         {
-            std::string contact_point_str = connection_node.attribute("contactPoint").as_string("");
-            odr::check_and_repair(
-                contact_point_str == "start" || contact_point_str == "end",
-                [&]() { contact_point_str = "start"; },
-                "Junction #%s: unknown connection::contactPoint '%s', set to 'start'",
-                junction_id.c_str(),
-                contact_point_str.c_str());
-            const JunctionConnection::ContactPoint junction_conn_contact_point =
-                (contact_point_str == "start") ? JunctionConnection::ContactPoint::Start : JunctionConnection::ContactPoint::End;
+            const std::string connection_type = connection_node.attribute("type").as_string("default");
+            const bool        is_virtual_connection = (connection_type == "virtual");
+
+            // OpenDRIVE 1.6.1, 10.4.1: virtual connections are described by <predecessor> / <successor> instead of a connecting road
+            std::string                      contact_point_str = connection_node.attribute("contactPoint").as_string("");
+            JunctionConnection::ContactPoint junction_conn_contact_point = JunctionConnection::ContactPoint::None;
+            if (!is_virtual_connection || !contact_point_str.empty())
+            {
+                odr::check_and_repair(
+                    contact_point_str == "start" || contact_point_str == "end",
+                    [&]() { contact_point_str = "start"; },
+                    "Junction #%s: unknown connection::contactPoint '%s', set to 'start'",
+                    junction_id.c_str(),
+                    contact_point_str.c_str());
+                junction_conn_contact_point =
+                    (contact_point_str == "start") ? JunctionConnection::ContactPoint::Start : JunctionConnection::ContactPoint::End;
+            }
 
             const std::string   junction_connection_id = connection_node.attribute("id").as_string("");
             JunctionConnection& junction_connection = junction.id_to_connection
@@ -189,6 +198,27 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                                       connection_node.attribute("connectingRoad").as_string(""),
                                                                                       junction_conn_contact_point)})
                                                           .first->second;
+            junction_connection.type = connection_type;
+
+            for (const bool is_predecessor : {true, false})
+            {
+                const pugi::xml_node link_node = connection_node.child(is_predecessor ? "predecessor" : "successor");
+                if (!link_node)
+                    continue;
+
+                JunctionConnectionLink link(link_node.attribute("elementType").as_string("road"), link_node.attribute("elementId").as_string(""));
+                if (const pugi::xml_attribute attr = link_node.attribute("elementS"))
+                    link.element_s = attr.as_double();
+                if (const pugi::xml_attribute attr = link_node.attribute("elementDir"))
+                    link.element_dir = attr.as_string();
+                if (const pugi::xml_attribute attr = link_node.attribute("contactPoint"))
+                    link.contact_point = attr.as_string();
+
+                if (is_predecessor)
+                    junction_connection.predecessor = link;
+                else
+                    junction_connection.successor = link;
+            }
 
             for (const pugi::xml_node lane_link_node : connection_node.children("laneLink"))
             {
@@ -215,6 +245,27 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                               JunctionController(junction_controller_id,
                                                                  controller_node.attribute("type").as_string(""),
                                                                  controller_node.attribute("sequence").as_uint(0))});
+        }
+    }
+
+    for (const pugi::xml_node junction_group_node : odr_node.children("junctionGroup"))
+    {
+        const std::string junction_group_id = junction_group_node.attribute("id").as_string("");
+        JunctionGroup&    junction_group = this->id_to_junction_group
+                                            .insert({junction_group_id,
+                                                     JunctionGroup(junction_group_node.attribute("name").as_string(""),
+                                                                   junction_group_id,
+                                                                   junction_group_node.attribute("type").as_string("unknown"))})
+                                            .first->second;
+
+        for (const pugi::xml_node junction_reference_node : junction_group_node.children("junctionReference"))
+        {
+            const std::string junction_id = junction_reference_node.attribute("junction").as_string("");
+            odr::check(this->id_to_junction.find(junction_id) != this->id_to_junction.end(),
+                       "JunctionGroup #%s: referenced junction #%s does not exist",
+                       junction_group_id.c_str(),
+                       junction_id.c_str());
+            junction_group.junction_ids.push_back(junction_id);
         }
     }
 
@@ -304,7 +355,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             if (const pugi::xml_node node = road_type_node.child("speed"))
             {
                 const std::string speed_record_max = node.attribute("max").as_string("");
-                const std::string speed_record_unit = node.attribute("unit").as_string("");
+                const std::string speed_record_unit = node.attribute("unit").as_string("m/s");
                 SpeedRecord       speed_record(speed_record_max, speed_record_unit);
                 road.s_to_speed.insert({s, speed_record});
             }
@@ -1011,6 +1062,16 @@ std::vector<Road> OpenDriveMap::get_roads() const
 std::vector<Junction> OpenDriveMap::get_junctions() const
 {
     return get_map_values(this->id_to_junction);
+}
+
+JunctionGroup OpenDriveMap::get_junction_group(const std::string& id) const
+{
+    return this->id_to_junction_group.at(id);
+}
+
+std::vector<JunctionGroup> OpenDriveMap::get_junction_groups() const
+{
+    return get_map_values(this->id_to_junction_group);
 }
 
 const LaneSection* OpenDriveMap::get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const
