@@ -215,25 +215,48 @@ Vec3D Road::get_surface_pt(double s, const double t, Vec3D* vn) const
 
     h_t += this->get_lateral_shape(s, t);
 
-    return this->get_xyz(s, t, h_t, nullptr, nullptr, vn);
+    Vec3D       e_t{0, 0, 0};
+    Vec3D       e_h{0, 0, 0};
+    const Vec3D xyz = this->get_xyz(s, t, h_t, nullptr, &e_t, &e_h);
+    if (vn)
+    {
+        // tilt the normal by the lateral shape slope dh/dt, the surface tangent along t is e_t + dh/dt * e_h
+        const double dh_dt = this->get_lateral_shape_derivative(s, t);
+        *vn = (dh_dt == 0.0) ? e_h : normalize(sub(e_h, mut(dh_dt, e_t)));
+    }
+
+    return xyz;
+}
+
+// OpenDRIVE 1.6.1, 8.4.3 Shape definition: "Between shape profiles, at specific s-coordinates, the road shape is interpolated
+// linearly." and "The default value for shape is zero."
+static double interpolate_lateral_shape(const std::map<double, CubicProfile>& s_to_lateral_shape,
+                                        const double                          s,
+                                        const double                          t,
+                                        double (CubicProfile::*eval_fn)(const double, const double, const bool) const)
+{
+    auto s1_shape_iter = s_to_lateral_shape.upper_bound(s);
+    if (s1_shape_iter == s_to_lateral_shape.begin())
+        return 0.0;
+
+    const auto   s0_shape_iter = std::prev(s1_shape_iter);
+    const double h0 = (s0_shape_iter->second.*eval_fn)(t, 0.0, true);
+    if (s1_shape_iter == s_to_lateral_shape.end())
+        return h0;
+
+    const double h1 = (s1_shape_iter->second.*eval_fn)(t, 0.0, true);
+    const double ds = s1_shape_iter->first - s0_shape_iter->first;
+    return h0 + (h1 - h0) * ((s - s0_shape_iter->first) / ds);
 }
 
 double Road::get_lateral_shape(const double s, const double t) const
 {
-    // OpenDRIVE 1.6.1, 8.4.3 Shape definition: "Between shape profiles, at specific s-coordinates, the road shape is interpolated
-    // linearly." and "The default value for shape is zero."
-    auto s1_shape_iter = this->s_to_lateral_shape.upper_bound(s);
-    if (s1_shape_iter == this->s_to_lateral_shape.begin())
-        return 0.0;
+    return interpolate_lateral_shape(this->s_to_lateral_shape, s, t, &CubicProfile::evaluate);
+}
 
-    const auto   s0_shape_iter = std::prev(s1_shape_iter);
-    const double h0 = s0_shape_iter->second.evaluate(t);
-    if (s1_shape_iter == this->s_to_lateral_shape.end())
-        return h0;
-
-    const double h1 = s1_shape_iter->second.evaluate(t);
-    const double ds = s1_shape_iter->first - s0_shape_iter->first;
-    return h0 + (h1 - h0) * ((s - s0_shape_iter->first) / ds);
+double Road::get_lateral_shape_derivative(const double s, const double t) const
+{
+    return interpolate_lateral_shape(this->s_to_lateral_shape, s, t, &CubicProfile::derivative);
 }
 
 std::set<double>
