@@ -1,4 +1,5 @@
 #include "OpenDriveMap.h"
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 struct OpenDriveFixture
@@ -66,4 +67,32 @@ TEST_CASE_METHOD(OpenDriveFixture, "Routing check", "[xodr]")
         const odr::RoutingPath path = graph.shortest_path(expected_path.front(), expected_path.back());
         REQUIRE(path == expected_path);
     }
+}
+
+TEST_CASE("Lane border definitions", "[xodr][lane_border]")
+{
+    odr::OpenDriveMap       odr_map("lane_border.xodr");
+    const odr::Road&        road = odr_map.get_road("1");
+    const odr::LaneSection& ls = road.get_lanesection(0.0);
+
+    const odr::Lane& lane_1 = ls.get_lane(1);
+    const odr::Lane& lane_2 = ls.get_lane(2);
+    const odr::Lane& lane_m1 = ls.get_lane(-1);
+
+    REQUIRE(lane_1.outer_border.evaluate(10.0) == Catch::Approx(3.5));
+    REQUIRE(lane_2.outer_border.evaluate(10.0) == Catch::Approx(7.0));
+    REQUIRE(lane_2.outer_border.evaluate(75.0) == Catch::Approx(7.5));
+
+    // widths are derived from borders
+    REQUIRE(lane_1.lane_width.evaluate(10.0) == Catch::Approx(3.5));
+    REQUIRE(lane_2.lane_width.evaluate(10.0) == Catch::Approx(3.5));
+    REQUIRE(lane_2.lane_width.evaluate(75.0) == Catch::Approx(4.0));
+
+    // <width> takes precedence over <border>
+    REQUIRE(lane_m1.outer_border.evaluate(10.0) == Catch::Approx(-3.0));
+
+    REQUIRE(ls.get_lane_id(10.0, 5.0) == 2);
+    REQUIRE(ls.get_lane_id(10.0, 1.0) == 1);
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }

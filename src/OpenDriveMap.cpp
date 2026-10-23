@@ -405,9 +405,6 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 const pugi::xml_node lane_node = lane_xpath_node.node();
                 const int            lane_id = lane_node.attribute("id").as_int(0);
 
-                odr::check(
-                    !lane_node.child("border"), "Road #%s LaneSection %f Lane #%d: border definitions not supported", road_id.c_str(), s0, lane_id);
-
                 Lane& lane =
                     lanesection.id_to_lane
                         .insert({lane_id,
@@ -448,6 +445,26 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                             s0);
 
                     lane.lane_width.segments[s0 + s_offset] = width_poly;
+                }
+
+                for (const pugi::xml_node lane_border_node : lane_node.children("border"))
+                {
+                    double       s_offset = lane_border_node.attribute("sOffset").as_double(0.0);
+                    const double a = lane_border_node.attribute("a").as_double(0.0);
+                    const double b = lane_border_node.attribute("b").as_double(0.0);
+                    const double c = lane_border_node.attribute("c").as_double(0.0);
+                    const double d = lane_border_node.attribute("d").as_double(0.0);
+
+                    odr::check_and_repair(
+                        s_offset >= 0,
+                        [&]() { s_offset = 0; },
+                        "Road #%s LaneSection %f Lane #%d: border::sOffset %f < 0, set sOffset=0",
+                        road_id.c_str(),
+                        s0,
+                        lane_id,
+                        s_offset);
+
+                    lane.lane_border.segments[s0 + s_offset] = CubicPoly(a, b, c, d, s0 + s_offset);
                 }
 
                 if (with_lane_height)
@@ -545,33 +562,66 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             if (id_lane_iter0 == lanesection.id_to_lane.end())
                 throw std::runtime_error("lane section does not have lane #0");
 
+            // OpenDRIVE 1.6.1, 9.5.2 Lane borders:
+            // "Lane width and lane border elements are mutually exclusive within the same lane group. If both width and lane border
+            // elements are present for a lane section in the OpenDRIVE file, the application shall use the information from the <width>
+            // elements."
+            const auto group_uses_borders = [](auto begin, auto end)
+            {
+                bool has_border = false;
+                for (auto iter = begin; iter != end; iter++)
+                {
+                    if (!iter->second.lane_width.segments.empty())
+                        return false;
+                    has_border = has_border || !iter->second.lane_border.segments.empty();
+                }
+                return has_border;
+            };
+
             /* iterate from id #1 towards +inf */
             const auto id_lane_iter1 = std::next(id_lane_iter0);
+            const bool left_uses_borders = group_uses_borders(id_lane_iter1, lanesection.id_to_lane.end());
             for (auto iter = id_lane_iter1; iter != lanesection.id_to_lane.end(); iter++)
             {
-                if (iter == id_lane_iter1)
-                    iter->second.outer_border = iter->second.lane_width;
+                const CubicProfile inner_border = (iter == id_lane_iter1) ? CubicProfile() : std::prev(iter)->second.outer_border;
+                if (left_uses_borders)
+                {
+                    iter->second.outer_border = iter->second.lane_border.segments.empty() ? inner_border : iter->second.lane_border;
+                    iter->second.lane_width = iter->second.outer_border.add(inner_border.negate());
+                }
                 else
-                    iter->second.outer_border = std::prev(iter)->second.outer_border.add(iter->second.lane_width);
+                {
+                    iter->second.outer_border = inner_border.add(iter->second.lane_width);
+                }
             }
 
             /* iterate from id #-1 towards -inf */
             // "For a reverse iterator r constructed from an iterator i, the relationship &*r == &*(i - 1) is always true"
             // The reverse iterator points to the element that is one before the element referred by the id_lane_iter0!
             const std::map<int, Lane>::reverse_iterator r_id_lane_iter1(id_lane_iter0);
+            const bool                                  right_uses_borders = group_uses_borders(r_id_lane_iter1, lanesection.id_to_lane.rend());
             for (auto r_iter = r_id_lane_iter1; r_iter != lanesection.id_to_lane.rend(); r_iter++)
             {
-                if (r_iter == r_id_lane_iter1)
-                    r_iter->second.outer_border = r_iter->second.lane_width.negate();
+                const CubicProfile inner_border = (r_iter == r_id_lane_iter1) ? CubicProfile() : std::prev(r_iter)->second.outer_border;
+                if (right_uses_borders)
+                {
+                    r_iter->second.outer_border = r_iter->second.lane_border.segments.empty() ? inner_border : r_iter->second.lane_border;
+                    r_iter->second.lane_width = inner_border.add(r_iter->second.outer_border.negate());
+                }
                 else
-                    r_iter->second.outer_border = std::prev(r_iter)->second.outer_border.add(r_iter->second.lane_width.negate());
+                {
+                    r_iter->second.outer_border = inner_border.add(r_iter->second.lane_width.negate());
+                }
             }
 
             // OpenDRIVE® Format Specification, Rev. 1.4, 3.3.2 Lane Offset:
             // "... lane 0 may be offset using a cubic polynom"
+            // Lane borders are absolute t-positions; OpenDRIVE 1.6.1, 9.5.2: "Border elements shall not exist together with lane offset."
             for (auto& id_lane : lanesection.id_to_lane)
             {
-                id_lane.second.outer_border = id_lane.second.outer_border.add(road.lane_offset);
+                const bool uses_borders = (id_lane.first > 0 && left_uses_borders) || (id_lane.first < 0 && right_uses_borders);
+                if (!uses_borders)
+                    id_lane.second.outer_border = id_lane.second.outer_border.add(road.lane_offset);
             }
         }
 
