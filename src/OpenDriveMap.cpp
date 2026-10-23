@@ -557,6 +557,34 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 }
             }
 
+            // OpenDRIVE 1.6.1, 9.2 Lane sections: a lane section with @singleSide="true" is only valid for the side(s) it defines.
+            // The lanes of the other side continue from the preceding lane section, so they are copied into this one.
+            if (lanesection_node.attribute("singleSide").as_bool(false) && road.s_to_lanesection.begin()->first < s0)
+            {
+                LaneSection& prev_lanesection = std::prev(road.s_to_lanesection.find(s0))->second;
+
+                bool has_left = false;
+                bool has_right = false;
+                for (const auto& [id, lane] : lanesection.id_to_lane)
+                {
+                    has_left = has_left || id > 0;
+                    has_right = has_right || id < 0;
+                }
+
+                for (auto& [id, prev_lane] : prev_lanesection.id_to_lane)
+                {
+                    if (id == 0 || (id > 0 && has_left) || (id < 0 && has_right))
+                        continue;
+
+                    Lane lane = prev_lane;
+                    lane.key.lanesection_s0 = s0;
+                    lane.predecessor = id;
+                    lane.successor = prev_lane.successor;
+                    prev_lane.successor = id;
+                    lanesection.id_to_lane.insert({id, lane});
+                }
+            }
+
             /* derive lane borders from lane widths */
             const auto id_lane_iter0 = lanesection.id_to_lane.find(0);
             if (id_lane_iter0 == lanesection.id_to_lane.end())
