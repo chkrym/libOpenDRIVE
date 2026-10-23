@@ -529,3 +529,53 @@ TEST_CASE("Surface CRG references and additional data", "[xodr][crg][additional_
     REQUIRE(!junction.surface_crgs[0].s_start.has_value());
     REQUIRE(junction.additional_data.user_data[0].code == "junction_note");
 }
+
+TEST_CASE("Railroad switches and stations", "[xodr][railroad]")
+{
+    const odr::OpenDriveMap odr_map("railroad.xodr");
+
+    const odr::Road road = odr_map.get_road("1");
+    REQUIRE(road.id_to_switch.size() == 2);
+
+    const odr::RailroadSwitch& sw1 = road.id_to_switch.at("sw1");
+    REQUIRE(sw1.road_id == "1");
+    REQUIRE(sw1.name == "W1");
+    REQUIRE(sw1.position == "dynamic");
+    REQUIRE(sw1.main_track.id == "1");
+    REQUIRE(sw1.main_track.s == 50.0);
+    REQUIRE(sw1.main_track.dir == "+");
+    REQUIRE(sw1.side_track.id == "2");
+    REQUIRE(sw1.side_track.s == 0.0);
+    REQUIRE(sw1.side_track.dir == "-");
+    REQUIRE(sw1.partner.has_value());
+    REQUIRE(sw1.partner->id == "sw2");
+    REQUIRE(sw1.partner->name == "W2");
+
+    // direction given as @position as in the 13.2 attribute table
+    const odr::RailroadSwitch& sw3 = road.id_to_switch.at("sw3");
+    REQUIRE(sw3.position == "static");
+    REQUIRE(sw3.main_track.dir == "-");
+    REQUIRE(sw3.side_track.s == 40.0);
+    REQUIRE(sw3.side_track.dir == "+");
+    REQUIRE(!sw3.partner.has_value());
+
+    REQUIRE(road.get_lanesection(0.0).get_lane(-1).type == "rail");
+    REQUIRE(odr_map.get_road("2").get_lanesection(0.0).get_lane(-1).type == "tram");
+    REQUIRE(odr_map.get_road("2").id_to_switch.empty());
+
+    REQUIRE(odr_map.get_stations().size() == 1);
+    const odr::Station station = odr_map.get_station("st1");
+    REQUIRE(station.name == "Central");
+    REQUIRE(station.type == "large");
+    REQUIRE(station.platforms.size() == 2);
+    REQUIRE(station.platforms[0].id == "p1");
+    REQUIRE(station.platforms[0].name == "Platform 1");
+    REQUIRE(station.platforms[0].segments.size() == 2);
+    REQUIRE(station.platforms[0].segments[0].road_id == "1");
+    REQUIRE(station.platforms[0].segments[0].s_start == 10.0);
+    REQUIRE(station.platforms[0].segments[0].s_end == 40.0);
+    REQUIRE(station.platforms[0].segments[0].side == "right");
+    REQUIRE(station.platforms[0].segments[1].road_id == "2");
+    REQUIRE(station.platforms[0].segments[1].side == "left");
+    REQUIRE(station.platforms[1].segments.empty());
+}
