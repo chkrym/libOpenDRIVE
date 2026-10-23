@@ -3,6 +3,7 @@
 #include "LaneSection.h"
 #include "Math.hpp"
 #include "Mesh.h"
+#include "Railroad.h"
 #include "RefLine.h"
 #include "RoadObject.h"
 #include "RoadSignal.h"
@@ -142,6 +143,8 @@ public:
     std::map<std::string, RoadBridge> id_to_bridge;
     std::map<std::string, RoadSignal> id_to_signal;
     std::vector<RoadSignalReference>  signal_references; // OpenDRIVE 1.6.1, 12.5, ids may repeat across roads
+
+    std::map<std::string, RailroadSwitch> id_to_switch; // OpenDRIVE 1.6.1, 13.2 <railroad><switch>
 
     std::vector<SurfaceCRG> surface_crgs; // OpenDRIVE 1.6.1, 8.5 <surface><CRG>
     AdditionalData          additional_data;

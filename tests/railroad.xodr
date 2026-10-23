@@ -1,0 +1,62 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="railroad" version="1.00"/>
+    <road name="track_main" length="100.0" id="1" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="100.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="rail" level="false">
+                        <width sOffset="0.0" a="1.435" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+        <railroad>
+            <switch name="W1" id="sw1" position="dynamic">
+                <mainTrack id="1" s="50.0" dir="+"/>
+                <sideTrack id="2" s="0.0" dir="-"/>
+                <partner name="W2" id="sw2"/>
+            </switch>
+            <switch name="W3" id="sw3" position="static">
+                <mainTrack id="1" s="80.0" position="-"/>
+                <sideTrack id="2" s="40.0" position="+"/>
+            </switch>
+        </railroad>
+    </road>
+    <road name="track_side" length="50.0" id="2" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="50.0" y="0.0" hdg="0.1" length="50.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="tram" level="false">
+                        <width sOffset="0.0" a="1.435" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <station name="Central" id="st1" type="large">
+        <platform name="Platform 1" id="p1">
+            <segment roadId="1" sStart="10.0" sEnd="40.0" side="right"/>
+            <segment roadId="2" sStart="0.0" sEnd="20.0" side="left"/>
+        </platform>
+        <platform name="Platform 2" id="p2"/>
+    </station>
+</OpenDRIVE>

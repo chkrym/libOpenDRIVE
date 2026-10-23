@@ -34,6 +34,8 @@ public:
     std::vector<JunctionGroup> get_junction_groups() const;
     Controller                 get_controller(const std::string& id) const;
     std::vector<Controller>    get_controllers() const;
+    Station                    get_station(const std::string& id) const;
+    std::vector<Station>       get_stations() const;
 
     const LaneSection* get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const;
     const Lane*        get_adjacent_lane(const Lane& lane, const bool predecessor) const;
@@ -52,6 +54,7 @@ public:
     std::map<std::string, Junction>      id_to_junction;
     std::map<std::string, JunctionGroup> id_to_junction_group;
     std::map<std::string, Controller>    id_to_controller;
+    std::map<std::string, Station>       id_to_station; // OpenDRIVE 1.6.1, 13.3
 };
 
 } // namespace odr

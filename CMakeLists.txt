@@ -38,6 +38,7 @@ set(SOURCES
     src/LaneSection.cpp
     src/Mesh.cpp
     src/OpenDriveMap.cpp
+    src/Railroad.cpp
     src/RefLine.cpp
     src/Road.cpp
     src/RoadMark.cpp

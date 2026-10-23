@@ -107,6 +107,16 @@ AdditionalData extract_additional_data(const pugi::xml_node& xml_node)
     return additional_data;
 }
 
+// OpenDRIVE 1.6.1, 13.2: <mainTrack> / <sideTrack> of a railroad switch
+RailroadSwitchTrack extract_switch_track(const pugi::xml_node& track_node)
+{
+    // the UML model names the direction attribute @dir, the 13.2 attribute table names it @position
+    pugi::xml_attribute dir_attr = track_node.attribute("dir");
+    if (!dir_attr)
+        dir_attr = track_node.attribute("position");
+    return RailroadSwitchTrack(track_node.attribute("id").as_string(""), track_node.attribute("s").as_double(0.0), dir_attr.as_string("+"));
+}
+
 // OpenDRIVE 1.6.1, 8.5 / 10.3: <CRG> elements of a <surface> element of a road or junction
 std::vector<SurfaceCRG> extract_surface_crgs(const pugi::xml_node& surface_node)
 {
@@ -358,6 +368,27 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
         }
     }
 
+    for (const pugi::xml_node station_node : odr_node.children("station"))
+    {
+        const std::string station_id = station_node.attribute("id").as_string("");
+        Station&          station =
+            this->id_to_station
+                .insert({station_id, Station(station_id, station_node.attribute("name").as_string(""), station_node.attribute("type").as_string(""))})
+                .first->second;
+        for (const pugi::xml_node platform_node : station_node.children("platform"))
+        {
+            StationPlatform platform(platform_node.attribute("id").as_string(""), platform_node.attribute("name").as_string(""));
+            for (const pugi::xml_node segment_node : platform_node.children("segment"))
+            {
+                platform.segments.emplace_back(segment_node.attribute("roadId").as_string(""),
+                                               segment_node.attribute("sStart").as_double(0.0),
+                                               segment_node.attribute("sEnd").as_double(0.0),
+                                               segment_node.attribute("side").as_string(""));
+            }
+            station.platforms.push_back(platform);
+        }
+    }
+
     odr::check(odr_node.child("road"), "No roads found");
     for (const pugi::xml_node road_node : odr_node.children("road"))
     {
@@ -386,6 +417,19 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             road.length >= 0, [&]() { road.length = 0; }, "Road #%s: length %f < 0, set length = 0", road_id.c_str(), road.length);
 
         road.surface_crgs = extract_surface_crgs(road_node.child("surface"));
+        /* parse railroad switches */
+        for (const pugi::xml_node switch_node : road_node.child("railroad").children("switch"))
+        {
+            const std::string switch_id = switch_node.attribute("id").as_string("");
+            RailroadSwitch    railroad_switch(
+                road_id, switch_id, switch_node.attribute("name").as_string(""), switch_node.attribute("position").as_string(""));
+            railroad_switch.main_track = extract_switch_track(switch_node.child("mainTrack"));
+            railroad_switch.side_track = extract_switch_track(switch_node.child("sideTrack"));
+            if (const pugi::xml_node partner_node = switch_node.child("partner"))
+                railroad_switch.partner.emplace(partner_node.attribute("id").as_string(""), partner_node.attribute("name").as_string(""));
+            road.id_to_switch.insert({switch_id, railroad_switch});
+        }
+
         road.additional_data = extract_additional_data(road_node);
 
         /* parse road links */
@@ -1362,6 +1406,16 @@ JunctionGroup OpenDriveMap::get_junction_group(const std::string& id) const
 std::vector<JunctionGroup> OpenDriveMap::get_junction_groups() const
 {
     return get_map_values(this->id_to_junction_group);
+}
+
+Station OpenDriveMap::get_station(const std::string& id) const
+{
+    return this->id_to_station.at(id);
+}
+
+std::vector<Station> OpenDriveMap::get_stations() const
+{
+    return get_map_values(this->id_to_station);
 }
 
 Controller OpenDriveMap::get_controller(const std::string& id) const
