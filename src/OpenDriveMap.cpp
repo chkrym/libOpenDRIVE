@@ -77,7 +77,7 @@ double get_poly3_u_end(const double b, const double c, const double d, const dou
         for (std::size_t i = 0; i < num_intervals; i++)
         {
             const double u_mid = (i + 0.5) * h;
-            for (const auto [x, w] : {std::pair{-sqrt_3_5, 5.0 / 9.0}, std::pair{0.0, 8.0 / 9.0}, std::pair{sqrt_3_5, 5.0 / 9.0}})
+            for (const auto& [x, w] : {std::pair{-sqrt_3_5, 5.0 / 9.0}, std::pair{0.0, 8.0 / 9.0}, std::pair{sqrt_3_5, 5.0 / 9.0}})
             {
                 const double u = u_mid + 0.5 * h * x;
                 const double dv = b + 2 * c * u + 3 * d * u * u;
@@ -340,7 +340,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             }
             else if (geometry_type == "poly3")
             {
-                const double a = geometry_node.attribute("a").as_double(0.0);
+                // @a only shifts the u/v origin along the v-axis and does not affect the curve position, so it is not read
                 const double b = geometry_node.attribute("b").as_double(0.0);
                 const double c = geometry_node.attribute("c").as_double(0.0);
                 const double d = geometry_node.attribute("d").as_double(0.0);
