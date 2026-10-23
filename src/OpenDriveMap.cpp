@@ -765,6 +765,60 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                         }
                     }
 
+                    if (const pugi::xml_node roadmark_explicit_node = roadmark_node.child("explicit"))
+                    {
+                        for (const pugi::xml_node roadmarks_line_node : roadmark_explicit_node.children("line"))
+                        {
+                            RoadMarksLine roadmarks_line(road_id,
+                                                         s0,
+                                                         lane_id,
+                                                         roadmark_group_s0,
+                                                         roadmarks_line_node.attribute("width").as_double(-1),
+                                                         roadmarks_line_node.attribute("length").as_double(0),
+                                                         0.0,
+                                                         roadmarks_line_node.attribute("tOffset").as_double(0),
+                                                         roadmarks_line_node.attribute("sOffset").as_double(0),
+                                                         "",
+                                                         roadmarks_line_node.attribute("rule").as_string("none"));
+
+                            for (auto [val_name, val_ptr] :
+                                 {std::pair{"length", &(roadmarks_line.length)}, std::pair{"s_offset", &(roadmarks_line.s_offset)}})
+                            {
+                                odr::check_and_repair((*val_ptr) >= 0,
+                                                      [p = val_ptr]() { *p = 0; },
+                                                      "Road #%s LaneSection %f Lane #%d RoadMark %f: explicit::line::%s %f < 0, set %s=0",
+                                                      road_id.c_str(),
+                                                      s0,
+                                                      lane_id,
+                                                      roadmark_group_s0,
+                                                      val_name,
+                                                      *val_ptr,
+                                                      val_name);
+                            }
+
+                            roadmark_group.roadmark_explicit_lines.emplace(std::move(roadmarks_line));
+                        }
+                    }
+
+                    for (const pugi::xml_node sway_node : roadmark_node.children("sway"))
+                    {
+                        double ds = sway_node.attribute("ds").as_double(0.0);
+                        odr::check_and_repair(
+                            ds >= 0,
+                            [&]() { ds = 0; },
+                            "Road #%s LaneSection %f Lane #%d RoadMark %f: sway::ds %f < 0, set ds=0",
+                            road_id.c_str(),
+                            s0,
+                            lane_id,
+                            roadmark_group_s0,
+                            ds);
+                        roadmark_group.sway.segments[roadmark_group_s0 + ds] = CubicPoly(sway_node.attribute("a").as_double(0.0),
+                                                                                         sway_node.attribute("b").as_double(0.0),
+                                                                                         sway_node.attribute("c").as_double(0.0),
+                                                                                         sway_node.attribute("d").as_double(0.0),
+                                                                                         roadmark_group_s0 + ds);
+                    }
+
                     lane.roadmark_groups.emplace(std::move(roadmark_group));
                 }
             }

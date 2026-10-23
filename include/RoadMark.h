@@ -1,4 +1,5 @@
 #pragma once
+#include "Geometries/CubicSpline.h"
 #include "Utils.hpp"
 
 #include <functional>
@@ -97,7 +98,11 @@ struct RoadMarkGroup
     std::string material = "";
     std::string lane_change = "";
 
-    std::set<RoadMarksLine> roadmark_lines;
+    std::set<RoadMarksLine> roadmark_lines;          // <type><line>, repeated along the road mark
+    std::set<RoadMarksLine> roadmark_explicit_lines; // OpenDRIVE 1.6.1, 9.6.2 <explicit><line>, not repeated (space = 0)
+
+    // OpenDRIVE 1.6.1, 9.6.3 <sway>: lateral offset of the road mark reference position from the lane border, absolute s
+    CubicProfile sway;
 };
 
 struct RoadMark
@@ -123,6 +128,8 @@ struct RoadMark
     double width = 0;
 
     std::string type = "";
+
+    CubicProfile sway; // lateral offset from the lane border, added to t_offset
 };
 
 } // namespace odr

@@ -405,13 +405,16 @@ Mesh3D Road::get_lane_mesh(const Lane& lane, const double eps, std::vector<uint3
 
 Mesh3D Road::get_roadmark_mesh(const Lane& lane, const RoadMark& roadmark, const double eps) const
 {
-    const std::set<double> s_vals = this->approximate_lane_border_linear(lane, roadmark.s_start, roadmark.s_end, eps, true);
+    std::set<double>       s_vals = this->approximate_lane_border_linear(lane, roadmark.s_start, roadmark.s_end, eps, true);
+    const std::set<double> s_vals_sway = roadmark.sway.approximate_linear(eps, roadmark.s_start, roadmark.s_end);
+    s_vals.insert(s_vals_sway.begin(), s_vals_sway.end());
 
     Mesh3D out_mesh;
     for (const double& s : s_vals)
     {
         Vec3D        vn_edge_a{0, 0, 0};
-        const double t_edge_a = lane.outer_border.evaluate(s) + roadmark.width * 0.5 + roadmark.t_offset;
+        const double t_sway = roadmark.sway.evaluate(s, 0.0, false);
+        const double t_edge_a = lane.outer_border.evaluate(s) + roadmark.width * 0.5 + roadmark.t_offset + t_sway;
         out_mesh.vertices.push_back(this->get_surface_pt(s, t_edge_a, &vn_edge_a));
         out_mesh.normals.push_back(vn_edge_a);
 
