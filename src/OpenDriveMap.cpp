@@ -488,6 +488,8 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 s >= 0, [&]() { s = 0; }, "Road #%s: type record '%s' s %f < 0, set s=0", road_id.c_str(), type.c_str(), s);
 
             road.s_to_type[s] = type;
+            if (const pugi::xml_attribute country_attr = road_type_node.attribute("country"))
+                road.s_to_country[s] = country_attr.as_string("");
             if (const pugi::xml_node node = road_type_node.child("speed"))
             {
                 const std::string speed_record_max = node.attribute("max").as_string("");

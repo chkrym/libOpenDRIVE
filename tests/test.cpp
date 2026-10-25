@@ -243,6 +243,12 @@ TEST_CASE("Lane material, speed, access and rule", "[xodr][lane_attributes]")
     // road type speed without unit defaults to m/s as well (OpenDRIVE 1.6.1, 2.3.2)
     REQUIRE(road.s_to_speed.at(0.0).unit == "m/s");
 
+    // road type country code (OpenDRIVE 1.6.1, 8.3), only stored where the attribute is present
+    REQUIRE(road.s_to_type.size() == 2);
+    REQUIRE(road.s_to_type.at(60.0) == "rural");
+    REQUIRE(road.s_to_country.size() == 1);
+    REQUIRE(road.s_to_country.at(60.0) == "DE");
+
     const odr::Lane lane_0 = road.get_lanesection(0.0).get_lane(-1);
     REQUIRE(lane_0.s_to_material.size() == 1);
     const odr::LaneMaterial& material_0 = lane_0.s_to_material.at(0.0);

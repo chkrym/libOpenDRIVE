@@ -6,6 +6,7 @@
         <type s="0.0" type="town">
             <speed max="50"/>
         </type>
+        <type s="60.0" type="rural" country="DE"/>
         <planView>
             <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="100.0">
                 <line/>
