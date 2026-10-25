@@ -174,16 +174,34 @@ Vec3D Road::get_surface_pt(double s, const double t, Vec3D* vn) const
     const Lane&        inner_neighbor_lane = lanesection.get_lane(next_towards_zero(lane.id));
     const double       t_inner_brdr = inner_neighbor_lane.outer_border.evaluate(s);
     double             h_t = 0;
+    double             dh_dt = 0;
 
     if (lane.level)
     {
-        const double h_inner_brdr = -std::tan(this->crossfall.get_crossfall(s, (lane.id > 0))) * std::abs(t_inner_brdr);
-        const double superelev = this->superelevation.evaluate(s); // cancel out superelevation
-        h_t = h_inner_brdr + std::tan(superelev) * (t - t_inner_brdr);
+        // OpenDRIVE 1.6.1, 9.5.8: a lane with @level=true is excluded from both superelevation and road shape and "stays on the
+        // same height as the inner connecting lane". Several outer lanes may be level, so the height is taken at the inner
+        // border of the innermost lane of the consecutive level lanes.
+        int level_base_lane_id = lane.id;
+        while (level_base_lane_id != 0)
+        {
+            const int  next_inner_lane_id = next_towards_zero(level_base_lane_id);
+            const auto next_inner_lane_iter = lanesection.id_to_lane.find(next_inner_lane_id);
+            if (next_inner_lane_id == 0 || next_inner_lane_iter == lanesection.id_to_lane.end() || !next_inner_lane_iter->second.level)
+                break;
+            level_base_lane_id = next_inner_lane_id;
+        }
+        const double t_level_base =
+            (level_base_lane_id == lane.id) ? t_inner_brdr : lanesection.get_lane(next_towards_zero(level_base_lane_id)).outer_border.evaluate(s);
+
+        const double h_level_base =
+            -std::tan(this->crossfall.get_crossfall(s, (lane.id > 0))) * std::abs(t_level_base) + this->get_lateral_shape(s, t_level_base);
+        dh_dt = -std::tan(this->superelevation.evaluate(s)); // cancel out superelevation, e_t is rolled up by superelevation
+        h_t = h_level_base + dh_dt * (t - t_level_base);
     }
     else
     {
-        h_t = -std::tan(this->crossfall.get_crossfall(s, (lane.id > 0))) * std::abs(t);
+        h_t = -std::tan(this->crossfall.get_crossfall(s, (lane.id > 0))) * std::abs(t) + this->get_lateral_shape(s, t);
+        dh_dt = this->get_lateral_shape_derivative(s, t);
     }
 
     if (lane.s_to_height_offset.size() > 0)
@@ -213,15 +231,13 @@ Vec3D Road::get_surface_pt(double s, const double t, Vec3D* vn) const
         }
     }
 
-    h_t += this->get_lateral_shape(s, t);
-
     Vec3D       e_t{0, 0, 0};
     Vec3D       e_h{0, 0, 0};
     const Vec3D xyz = this->get_xyz(s, t, h_t, nullptr, &e_t, &e_h);
     if (vn)
     {
-        // tilt the normal by the lateral shape slope dh/dt, the surface tangent along t is e_t + dh/dt * e_h
-        const double dh_dt = this->get_lateral_shape_derivative(s, t);
+        // tilt the normal by the lateral slope dh/dt (lateral shape, or cancelled superelevation for level lanes), the surface
+        // tangent along t is e_t + dh/dt * e_h
         *vn = (dh_dt == 0.0) ? e_h : normalize(sub(e_h, mut(dh_dt, e_t)));
     }
 
