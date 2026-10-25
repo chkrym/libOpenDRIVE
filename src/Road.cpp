@@ -485,6 +485,12 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
     auto get_width_s = [&](const RoadObjectRepeat& r, const double& p) -> double
     { return (std::isnan(r.width_start) || std::isnan(r.width_end)) ? road_object.width : r.width_start + p * (r.width_end - r.width_start); };
 
+    auto get_length_s = [&](const RoadObjectRepeat& r, const double& p) -> double
+    { return (std::isnan(r.length_start) || std::isnan(r.length_end)) ? road_object.length : r.length_start + p * (r.length_end - r.length_start); };
+
+    auto get_radius_s = [&](const RoadObjectRepeat& r, const double& p) -> double
+    { return (std::isnan(r.radius_start) || std::isnan(r.radius_end)) ? road_object.radius : r.radius_start + p * (r.radius_end - r.radius_start); };
+
     Mesh3D road_obj_mesh;
 
     /* outline objects are not repeated, repeats only apply to the generic road object (box or cylinder) */
@@ -503,15 +509,17 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
                 const double z_s = get_z_s(repeat, p);
                 const double height_s = get_height_s(repeat, p);
                 const double w_s = get_width_s(repeat, p);
+                const double l_s = get_length_s(repeat, p);
+                const double r_s = get_radius_s(repeat, p);
 
                 Mesh3D single_road_obj_mesh;
-                if (road_object.radius > 0)
+                if (r_s > 0)
                 {
-                    single_road_obj_mesh = road_object.get_cylinder(eps, road_object.radius, height_s);
+                    single_road_obj_mesh = road_object.get_cylinder(eps, r_s, height_s);
                 }
-                else if (w_s > 0 && road_object.length > 0)
+                else if (w_s > 0 && l_s > 0)
                 {
-                    single_road_obj_mesh = road_object.get_box(w_s, road_object.length, height_s);
+                    single_road_obj_mesh = road_object.get_box(w_s, l_s, height_s);
                 }
 
                 Vec3D       e_s, e_t, e_h;
@@ -540,7 +548,10 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
                 const double t_s = get_t_s(repeat, p);
                 const double z_s = get_z_s(repeat, p);
                 const double height_s = get_height_s(repeat, p);
-                const double w_s = get_width_s(repeat, p);
+                const double r_s = get_radius_s(repeat, p);
+                /* continuous circular objects (e.g. pipes) are approximated by their diameter */
+                const double w_obj = get_width_s(repeat, p);
+                const double w_s = (w_obj > 0 || r_s <= 0) ? w_obj : 2 * r_s;
 
                 continuous_road_obj_mesh.vertices.push_back(this->get_xyz(s, t_s - 0.5 * w_s, z_s));
                 continuous_road_obj_mesh.vertices.push_back(this->get_xyz(s, t_s + 0.5 * w_s, z_s));

@@ -1108,11 +1108,19 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                         repeat_node.attribute("heightStart").as_double(NAN),
                                                         repeat_node.attribute("heightEnd").as_double(NAN),
                                                         repeat_node.attribute("zOffsetStart").as_double(NAN),
-                                                        repeat_node.attribute("zOffsetEnd").as_double(NAN));
+                                                        repeat_node.attribute("zOffsetEnd").as_double(NAN),
+                                                        repeat_node.attribute("lengthStart").as_double(NAN),
+                                                        repeat_node.attribute("lengthEnd").as_double(NAN),
+                                                        repeat_node.attribute("radiusStart").as_double(NAN),
+                                                        repeat_node.attribute("radiusEnd").as_double(NAN));
 
                     for (auto [val_name, val_ptr] : {std::pair{"s0", &(road_object_repeat.s0)},
                                                      std::pair{"width_start", &(road_object_repeat.width_start)},
-                                                     std::pair{"width_end", &(road_object_repeat.width_end)}})
+                                                     std::pair{"width_end", &(road_object_repeat.width_end)},
+                                                     std::pair{"length_start", &(road_object_repeat.length_start)},
+                                                     std::pair{"length_end", &(road_object_repeat.length_end)},
+                                                     std::pair{"radius_start", &(road_object_repeat.radius_start)},
+                                                     std::pair{"radius_end", &(road_object_repeat.radius_end)}})
                     {
                         odr::check_and_repair(
                             std::isnan((*val_ptr)) || (*val_ptr) >= 0,

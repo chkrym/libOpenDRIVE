@@ -19,7 +19,11 @@ RoadObjectRepeat::RoadObjectRepeat(double s0,
                                    double height_start,
                                    double height_end,
                                    double z_offset_start,
-                                   double z_offset_end) :
+                                   double z_offset_end,
+                                   double length_start,
+                                   double length_end,
+                                   double radius_start,
+                                   double radius_end) :
     s0(s0),
     length(length),
     distance(distance),
@@ -30,7 +34,11 @@ RoadObjectRepeat::RoadObjectRepeat(double s0,
     height_start(height_start),
     height_end(height_end),
     z_offset_start(z_offset_start),
-    z_offset_end(z_offset_end)
+    z_offset_end(z_offset_end),
+    length_start(length_start),
+    length_end(length_end),
+    radius_start(radius_start),
+    radius_end(radius_end)
 {
 }
 

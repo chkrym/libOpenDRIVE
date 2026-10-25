@@ -579,3 +579,72 @@ TEST_CASE("Railroad switches and stations", "[xodr][railroad]")
     REQUIRE(station.platforms[0].segments[1].side == "left");
     REQUIRE(station.platforms[1].segments.empty());
 }
+
+TEST_CASE("Object repeat length and radius interpolation", "[xodr][objects]")
+{
+    const odr::OpenDriveMap odr_map("object_repeat.xodr");
+    const odr::Road&        road = odr_map.get_road("1");
+
+    const odr::RoadObject& box = road.id_to_object.at("box");
+    REQUIRE(box.repeats.size() == 1);
+    REQUIRE(box.repeats[0].length_start == 2.0);
+    REQUIRE(box.repeats[0].length_end == 6.0);
+    REQUIRE(std::isnan(box.repeats[0].radius_start));
+    REQUIRE(std::isnan(box.repeats[0].radius_end));
+
+    // instances at s = 0, 50, 100 with length 2, 4, 6 (8 vertices per box)
+    const odr::Mesh3D box_mesh = road.get_road_object_mesh(box, 0.1);
+    REQUIRE(box_mesh.vertices.size() == 3 * 8);
+    const std::array<double, 3> s_instances = {0.0, 50.0, 100.0};
+    const std::array<double, 3> expected_lengths = {2.0, 4.0, 6.0};
+    for (std::size_t i = 0; i < 3; i++)
+    {
+        double x_min = INFINITY, x_max = -INFINITY;
+        for (std::size_t v = i * 8; v < (i + 1) * 8; v++)
+        {
+            x_min = std::min(x_min, box_mesh.vertices[v][0]);
+            x_max = std::max(x_max, box_mesh.vertices[v][0]);
+        }
+        REQUIRE(x_max - x_min == Catch::Approx(expected_lengths[i]));
+        REQUIRE(0.5 * (x_max + x_min) == Catch::Approx(s_instances[i]));
+    }
+
+    const odr::RoadObject& pole = road.id_to_object.at("pole");
+    REQUIRE(pole.repeats[0].radius_start == 0.1);
+    REQUIRE(pole.repeats[0].radius_end == 0.5);
+
+    // cylinders at s = 0, 50, 100 with radius 0.1, 0.3, 0.5
+    const odr::Mesh3D           pole_mesh = road.get_road_object_mesh(pole, 0.1);
+    const std::array<double, 3> expected_radii = {0.1, 0.3, 0.5};
+    std::array<double, 3>       max_radii = {0, 0, 0};
+    for (const odr::Vec3D& pt : pole_mesh.vertices)
+    {
+        REQUIRE(pt[1] == Catch::Approx(-5.0).margin(0.6));
+        const std::size_t i = static_cast<std::size_t>(std::round(pt[0] / 50.0));
+        REQUIRE(i < 3);
+        max_radii[i] = std::max(max_radii[i], std::hypot(pt[0] - s_instances[i], pt[1] + 5.0));
+    }
+    for (std::size_t i = 0; i < 3; i++)
+        REQUIRE(max_radii[i] == Catch::Approx(expected_radii[i]));
+
+    // continuous object without width uses the interpolated diameter
+    const odr::RoadObject& pipe = road.id_to_object.at("pipe");
+    const odr::Mesh3D      pipe_mesh = road.get_road_object_mesh(pipe, 0.1);
+    REQUIRE(!pipe_mesh.vertices.empty());
+    double t_min_start = INFINITY, t_max_start = -INFINITY, t_min_end = INFINITY, t_max_end = -INFINITY;
+    for (const odr::Vec3D& pt : pipe_mesh.vertices)
+    {
+        if (pt[0] == Catch::Approx(0.0).margin(1e-6))
+        {
+            t_min_start = std::min(t_min_start, pt[1]);
+            t_max_start = std::max(t_max_start, pt[1]);
+        }
+        if (pt[0] == Catch::Approx(20.0).margin(1e-6))
+        {
+            t_min_end = std::min(t_min_end, pt[1]);
+            t_max_end = std::max(t_max_end, pt[1]);
+        }
+    }
+    REQUIRE(t_max_start - t_min_start == Catch::Approx(0.4));
+    REQUIRE(t_max_end - t_min_end == Catch::Approx(0.8));
+}
