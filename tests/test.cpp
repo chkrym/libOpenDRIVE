@@ -205,6 +205,34 @@ TEST_CASE("Lateral profile shape", "[xodr][lateral_shape]")
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
 
+TEST_CASE("Level lanes exclude superelevation and lateral shape", "[xodr][lateral_shape][level]")
+{
+    odr::OpenDriveMap odr_map("level_shape.xodr", false);
+    const odr::Road   road = odr_map.get_road("1");
+
+    const double superelev = 0.05;
+    // lane -1 is not level: superelevation and shape apply
+    REQUIRE(road.get_surface_pt(10.0, -3.0)[2] == Catch::Approx(-3.0 * std::sin(superelev) + 0.0625 * std::cos(superelev)));
+
+    // OpenDRIVE 1.6.1, 9.5.8: the level lanes -2 and -3 stay on the height of the inner border of lane -2 (t=-4, shape h=0),
+    // neither the shape (h(t=-7)=0.5625) nor superelevation is applied to them
+    const double z_level = -4.0 * std::sin(superelev);
+    for (const double t : {-4.5, -5.5, -6.5, -7.0, -7.5})
+    {
+        odr::Vec3D       vn{0, 0, 0};
+        const odr::Vec3D pt = road.get_surface_pt(10.0, t, &vn);
+        REQUIRE(pt[2] == Catch::Approx(z_level));
+        REQUIRE(vn[0] == Catch::Approx(0.0).margin(1e-9));
+        REQUIRE(vn[1] == Catch::Approx(0.0).margin(1e-9));
+        REQUIRE(vn[2] == Catch::Approx(1.0));
+    }
+
+    const odr::Mesh3D lane_mesh = road.get_lane_mesh(road.get_lanesection(0.0).get_lane(-3), 0.1);
+    REQUIRE(!lane_mesh.vertices.empty());
+    for (const odr::Vec3D& vertex : lane_mesh.vertices)
+        REQUIRE(vertex[2] == Catch::Approx(z_level));
+}
+
 TEST_CASE("Header attributes and offset", "[xodr][header]")
 {
     const odr::OpenDriveMap odr_map("header.xodr");
