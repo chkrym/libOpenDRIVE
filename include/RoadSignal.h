@@ -30,7 +30,7 @@ struct RoadSignalElementReference
     std::string type = ""; // free text
 };
 
-// OpenDRIVE 1.6.1, 12.4 Signal positioning: physical position in inertial coordinates
+// OpenDRIVE 1.6.1, 12.4 Signal positioning: physical position in inertial coordinates (x/y shifted by the map offset when centered)
 struct RoadSignalPositionInertial
 {
     RoadSignalPositionInertial(double x, double y, double z, double hdg, double pitch, double roll);

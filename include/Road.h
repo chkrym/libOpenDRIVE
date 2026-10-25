@@ -106,7 +106,16 @@ public:
     Mesh3D get_lane_mesh(const Lane& lane, const double eps, std::vector<uint32_t>* outline_indices = nullptr) const;
 
     Mesh3D get_roadmark_mesh(const Lane& lane, const RoadMark& roadmark, const double eps) const;
+    // OpenDRIVE 1.6.1, 12.4: at positionInertial, or positionRoad on this road, if present; logical position otherwise
     Mesh3D get_road_signal_mesh(const RoadSignal& road_signal) const;
+    // signal box at the given road coordinates of this road
+    Mesh3D get_road_signal_mesh(const RoadSignal& road_signal,
+                                double            s,
+                                const double      t,
+                                const double      z_offset,
+                                const double      h_offset,
+                                const double      pitch,
+                                const double      roll) const;
     Mesh3D get_road_object_mesh(const RoadObject& road_object, const double eps) const;
 
     std::set<double>

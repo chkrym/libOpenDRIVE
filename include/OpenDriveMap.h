@@ -41,6 +41,8 @@ public:
     const Lane*              get_adjacent_lane(const Lane& lane, const bool predecessor) const;
     std::vector<const Lane*> get_adjacent_lanes(const Lane& lane, const bool predecessor) const;
 
+    // OpenDRIVE 1.6.1, 12.4: signal box at its physical position, resolving positionRoad on other roads
+    Mesh3D          get_road_signal_mesh(const RoadSignal& road_signal) const;
     RoadNetworkMesh get_road_network_mesh(const double eps) const;
     RoutingGraph    get_routing_graph() const;
 

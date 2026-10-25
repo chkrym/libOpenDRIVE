@@ -743,3 +743,53 @@ TEST_CASE("Object repeat length and radius interpolation", "[xodr][objects]")
     REQUIRE(t_max_start - t_min_start == Catch::Approx(0.4));
     REQUIRE(t_max_end - t_min_end == Catch::Approx(0.8));
 }
+
+TEST_CASE("Signal mesh at physical position", "[xodr][signals]")
+{
+    const auto get_mesh_center = [](const odr::Mesh3D& mesh)
+    {
+        odr::Vec3D center{0, 0, 0};
+        for (const odr::Vec3D& pt : mesh.vertices)
+            center = odr::add(center, pt);
+        return odr::mut(1.0 / mesh.vertices.size(), center);
+    };
+
+    for (const bool center_map : {false, true})
+    {
+        const odr::OpenDriveMap odr_map("signal_physical_position.xodr", center_map);
+        const odr::Road         road = odr_map.get_road("1");
+        // origin of the file's inertial coordinate system in the map frame
+        const odr::Vec3D origin = odr::sub(road.get_xyz(0.0, 0.0, 0.0), odr::Vec3D{100.0, 200.0, 0.0});
+
+        const auto require_signal_center = [&](const std::string& signal_id, const odr::Vec3D& expected)
+        {
+            const odr::RoadSignal& road_signal = road.id_to_signal.at(signal_id);
+            const odr::Mesh3D      mesh = odr_map.get_road_signal_mesh(road_signal);
+            REQUIRE(mesh.vertices.size() == 8);
+            const odr::Vec3D center = odr::sub(get_mesh_center(mesh), origin);
+            REQUIRE(center[0] == Catch::Approx(expected[0]));
+            REQUIRE(center[1] == Catch::Approx(expected[1]));
+            REQUIRE(center[2] == Catch::Approx(expected[2]));
+            // the mesh stays attached to the logical position
+            for (const odr::Vec2D& st : mesh.st_coordinates)
+            {
+                REQUIRE(st[0] == road_signal.s0);
+                REQUIRE(st[1] == road_signal.t0);
+            }
+        };
+
+        require_signal_center("inertial", {110.0, 194.0, 5.5});
+        require_signal_center("road_same", {131.0, 195.0, 3.0});
+        require_signal_center("road_other", {140.0, 221.0, 3.5});
+        require_signal_center("road_missing", {170.0, 196.0, 2.5}); // unknown road: logical position
+        require_signal_center("logical", {160.0, 196.0, 2.5});
+
+        // Road::get_road_signal_mesh resolves positionRoad only on its own road
+        const odr::Mesh3D road_other_mesh = road.get_road_signal_mesh(road.id_to_signal.at("road_other"));
+        const odr::Vec3D  road_other_center = odr::sub(get_mesh_center(road_other_mesh), origin);
+        REQUIRE(road_other_center[0] == Catch::Approx(120.0));
+        REQUIRE(road_other_center[1] == Catch::Approx(196.0));
+
+        REQUIRE(odr_map.get_road_network_mesh(0.1).road_signals_mesh.vertices.size() == 5 * 8);
+    }
+}
