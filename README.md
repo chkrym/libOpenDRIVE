@@ -5,7 +5,7 @@
 
 libOpenDRIVE is a **lightweight, dependency-free, fast C++ library** providing OpenDRIVE file parsing and 3D model generation. 
 
-It's small and can be easily integrated in other projects. A core function is the parsing of OpenDRIVE files and the generation of 3D models. The library targets ASAM OpenDRIVE version 1.6.1 (and stays compatible with 1.4 files). Some 1.6.1 elements are parsed into the data model only: OpenCRG surfaces, railroad switches and stations, signal positions given via `positionInertial`/`positionRoad`, and routing through virtual junction connections.
+It's small and can be easily integrated in other projects. A core function is the parsing of OpenDRIVE files and the generation of 3D models. The library targets ASAM OpenDRIVE version 1.6.1 (and stays compatible with 1.4 files). Some 1.6.1 elements are parsed into the data model only: OpenCRG surfaces, railroad switches and stations, signal positions given via `positionInertial`/`positionRoad`, and routing through virtual junction connections. Files referenced by `<include>` elements are read (paths relative to the including file) and merged where the element appears.
 
 ## Example
 Here's an example of how code using libOpenDRIVE looks. For a more complete example refer to [tests/test.cpp](tests/test.cpp).

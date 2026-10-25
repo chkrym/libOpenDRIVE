@@ -23,6 +23,7 @@
 #include <climits>
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -179,6 +180,73 @@ double get_poly3_u_end(const double b, const double c, const double d, const dou
     return 0.5 * (u_lo + u_hi);
 }
 
+// collect the <include> elements below xml_node, skipping the free-form content of <userData>
+void collect_include_nodes(const pugi::xml_node& xml_node, std::vector<pugi::xml_node>& include_nodes)
+{
+    for (const pugi::xml_node child_node : xml_node.children())
+    {
+        if (child_node.type() != pugi::node_element || std::string(child_node.name()) == "userData")
+            continue;
+        if (std::string(child_node.name()) == "include")
+            include_nodes.push_back(child_node);
+        else
+            collect_include_nodes(child_node, include_nodes);
+    }
+}
+
+// OpenDRIVE 1.6.1, 4.2 Combining Files: insert the content of every file referenced by an <include> element of xml_doc
+// at the position of that element. Paths are relative to the including file. If the root element of the included file
+// has the same name as the parent of the <include> element, its children are inserted, otherwise the root element itself.
+// The <include> elements are kept, so they stay available as AdditionalData::includes.
+void resolve_includes(pugi::xml_document& xml_doc, const std::filesystem::path& file_path, std::vector<std::filesystem::path>& file_stack)
+{
+    std::vector<pugi::xml_node> include_nodes;
+    collect_include_nodes(xml_doc, include_nodes);
+
+    for (pugi::xml_node include_node : include_nodes)
+    {
+        const std::string include_file = include_node.attribute("file").as_string("");
+        if (include_file.empty())
+            continue;
+
+        const std::filesystem::path include_path = (file_path.parent_path() / std::filesystem::u8path(include_file)).lexically_normal();
+        std::error_code             error_code;
+        std::filesystem::path       canonical_path = std::filesystem::weakly_canonical(include_path, error_code);
+        if (error_code)
+            canonical_path = include_path;
+        if (std::find(file_stack.begin(), file_stack.end(), canonical_path) != file_stack.end())
+        {
+            log::error("Recursive include of '%s' in '%s', skipped", include_file.c_str(), file_path.u8string().c_str());
+            continue;
+        }
+
+        pugi::xml_document           include_doc;
+        const pugi::xml_parse_result include_parse_result = include_doc.load_file(include_path.c_str());
+        if (!include_parse_result)
+        {
+            log::warn(
+                "Could not read include '%s' of '%s': %s", include_file.c_str(), file_path.u8string().c_str(), include_parse_result.description());
+            continue;
+        }
+
+        file_stack.push_back(canonical_path);
+        resolve_includes(include_doc, include_path, file_stack);
+        file_stack.pop_back();
+
+        pugi::xml_node       parent_node = include_node.parent();
+        const pugi::xml_node include_root_node = include_doc.document_element();
+        if (std::string(include_root_node.name()) == parent_node.name())
+        {
+            for (const pugi::xml_node child_node : include_root_node.children())
+                parent_node.insert_copy_before(child_node, include_node);
+        }
+        else
+        {
+            parent_node.insert_copy_before(include_root_node, include_node);
+        }
+    }
+}
+
 OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                            const bool         center_map,
                            const bool         with_road_objects,
@@ -193,6 +261,12 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
     const pugi::xml_parse_result xml_parse_result = xml_doc.load_file(xodr_file.c_str());
     if (!xml_parse_result)
         log::error("Error parsing xml: %s", xml_parse_result.description());
+
+    std::vector<std::filesystem::path> file_stack;
+    std::error_code                    error_code;
+    const std::filesystem::path        canonical_xodr_path = std::filesystem::weakly_canonical(std::filesystem::u8path(xodr_file), error_code);
+    file_stack.push_back(error_code ? std::filesystem::u8path(xodr_file) : canonical_xodr_path);
+    resolve_includes(xml_doc, std::filesystem::u8path(xodr_file), file_stack);
 
     const pugi::xml_node odr_node = xml_doc.child("OpenDRIVE");
 

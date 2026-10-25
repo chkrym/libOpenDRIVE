@@ -530,6 +530,36 @@ TEST_CASE("Surface CRG references and additional data", "[xodr][crg][additional_
     REQUIRE(junction.additional_data.user_data[0].code == "junction_note");
 }
 
+TEST_CASE("Include files are merged where they appear", "[xodr][include]")
+{
+    const odr::OpenDriveMap odr_map("include_main.xodr");
+
+    // <include> elements stay available as additional data, including those merged from included files (@file as written there)
+    REQUIRE(odr_map.additional_data.includes == std::vector<std::string>{"road_3.xml", "include/roads.xml", "include/missing.xml"});
+
+    // road 1: planView geometries from the included <planView>
+    const odr::Road road_1 = odr_map.get_road("1");
+    REQUIRE(road_1.ref_line.s0_to_geometry.size() == 2);
+    REQUIRE(road_1.ref_line.s0_to_geometry.count(10.0) == 1);
+    const odr::Vec3D pt_1 = road_1.ref_line.get_xyz(25.0);
+    REQUIRE(pt_1[0] == Catch::Approx(25.0));
+    REQUIRE(pt_1[1] == Catch::Approx(0.0));
+
+    // road 2: included from include/roads.xml, its lanes from the nested include/lane_2.xml
+    REQUIRE(odr_map.id_to_road.size() == 3);
+    const odr::Road        road_2 = odr_map.get_road("2");
+    const odr::LaneSection lanesection_2 = road_2.get_lanesection(0.0);
+    REQUIRE(lanesection_2.id_to_lane.size() == 3);
+    REQUIRE(lanesection_2.get_lane(-2).type == "sidewalk");
+    REQUIRE(road_2.get_xyz(10.0, -4.0, 0.0)[0] == Catch::Approx(40.0));
+
+    // road 3: root element <road> inserted as a whole, the recursive include in it is skipped
+    const odr::Road road_3 = odr_map.get_road("3");
+    REQUIRE(road_3.length == 15.0);
+    REQUIRE(road_3.additional_data.includes == std::vector<std::string>{"roads.xml"});
+    REQUIRE(road_3.get_lanesection(0.0).id_to_lane.size() == 2);
+}
+
 TEST_CASE("Railroad switches and stations", "[xodr][railroad]")
 {
     const odr::OpenDriveMap odr_map("railroad.xodr");

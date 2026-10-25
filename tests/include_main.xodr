@@ -1,0 +1,25 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="include_main" version="1.00"/>
+    <road name="r1" length="30.0" id="1" junction="-1">
+        <link/>
+        <planView>
+            <!-- OpenDRIVE 1.6.1, 4.2: same parent element (<planView>) in the including and the included file -->
+            <include file="include/planview_1.xml"/>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <include file="include/roads.xml"/>
+    <include file="include/missing.xml"/>
+</OpenDRIVE>
