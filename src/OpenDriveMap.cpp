@@ -879,7 +879,8 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                          roadmarks_line_node.attribute("tOffset").as_double(0),
                                                          roadmarks_line_node.attribute("sOffset").as_double(0),
                                                          name,
-                                                         roadmarks_line_node.attribute("rule").as_string("none"));
+                                                         roadmarks_line_node.attribute("rule").as_string("none"),
+                                                         roadmarks_line_node.attribute("color").as_string(roadmark_group.color.c_str()));
 
                             for (auto [val_name, val_ptr] : {std::pair{"length", &(roadmarks_line.length)},
                                                              std::pair{"space", &(roadmarks_line.space)},
@@ -915,7 +916,8 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                          roadmarks_line_node.attribute("tOffset").as_double(0),
                                                          roadmarks_line_node.attribute("sOffset").as_double(0),
                                                          "",
-                                                         roadmarks_line_node.attribute("rule").as_string("none"));
+                                                         roadmarks_line_node.attribute("rule").as_string("none"),
+                                                         roadmark_group.color);
 
                             for (auto [val_name, val_ptr] :
                                  {std::pair{"length", &(roadmarks_line.length)}, std::pair{"s_offset", &(roadmarks_line.s_offset)}})
@@ -1561,6 +1563,7 @@ RoadNetworkMesh OpenDriveMap::get_road_network_mesh(const double eps) const
                 {
                     roadmarks_idx_offset = roadmarks_mesh.vertices.size();
                     roadmarks_mesh.roadmark_type_start_indices[roadmarks_idx_offset] = roadmark.type;
+                    roadmarks_mesh.roadmark_color_start_indices[roadmarks_idx_offset] = roadmark.color;
                     roadmarks_mesh.add_mesh(road.get_roadmark_mesh(lane, roadmark, eps));
                 }
             }

@@ -74,6 +74,11 @@ std::string RoadmarksMesh::get_roadmark_type(const std::size_t vert_idx) const
     return get_nearest_lower_val<size_t, std::string>(this->roadmark_type_start_indices, vert_idx);
 }
 
+std::string RoadmarksMesh::get_roadmark_color(const std::size_t vert_idx) const
+{
+    return get_nearest_lower_val<size_t, std::string>(this->roadmark_color_start_indices, vert_idx);
+}
+
 std::array<size_t, 2> RoadmarksMesh::get_idx_interval_roadmark(const std::size_t vert_idx) const
 {
     return get_key_interval<size_t, std::string>(this->roadmark_type_start_indices, vert_idx, this->vertices.size());

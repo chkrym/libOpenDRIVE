@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <set>
 
 struct OpenDriveFixture
 {
@@ -505,6 +506,34 @@ TEST_CASE("Road mark explicit lines and sway", "[xodr][roadmark]")
     REQUIRE(mesh.vertices[1][1] == Catch::Approx(-3.5 - 0.06 + 0.5));
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}
+
+TEST_CASE("Road mark line color", "[xodr][roadmark]")
+{
+    const odr::OpenDriveMap odr_map("roadmark_color.xodr", false);
+    const odr::Road         road = odr_map.get_road("1");
+    const odr::LaneSection  lanesec = road.get_lanesection(0.0);
+
+    // <type><line @color> supersedes the <roadMark> @color, otherwise the line inherits it
+    const std::vector<odr::RoadMark> center_roadmarks = lanesec.get_lane(0).get_roadmarks(0.0, 20.0);
+    REQUIRE(center_roadmarks.size() == 2);
+    for (const odr::RoadMark& roadmark : center_roadmarks)
+    {
+        if (roadmark.t_offset > 0)
+            REQUIRE(roadmark.color == "yellow");
+        else
+            REQUIRE(roadmark.color == "white");
+    }
+
+    const std::vector<odr::RoadMark> right_roadmarks = lanesec.get_lane(-1).get_roadmarks(0.0, 20.0);
+    REQUIRE(right_roadmarks.size() == 1);
+    REQUIRE(right_roadmarks[0].color == "blue");
+
+    const odr::RoadmarksMesh roadmarks_mesh = odr_map.get_road_network_mesh(0.1).roadmarks_mesh;
+    std::set<std::string>    mesh_colors;
+    for (std::size_t vert_idx = 0; vert_idx < roadmarks_mesh.vertices.size(); vert_idx++)
+        mesh_colors.insert(roadmarks_mesh.get_roadmark_color(vert_idx));
+    REQUIRE(mesh_colors == std::set<std::string>{"yellow", "white", "blue"});
 }
 
 TEST_CASE("Surface CRG references and additional data", "[xodr][crg][additional_data]")
