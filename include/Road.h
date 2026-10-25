@@ -135,6 +135,7 @@ public:
 
     std::map<double, LaneSection>     s_to_lanesection;
     std::map<double, std::string>     s_to_type;
+    std::map<double, std::string>     s_to_country; // OpenDRIVE 1.6.1, 8.3 <type @country>, only for records that set it
     std::map<double, SpeedRecord>     s_to_speed;
     std::map<std::string, RoadObject> id_to_object;
 
