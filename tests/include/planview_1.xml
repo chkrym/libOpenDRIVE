@@ -1,0 +1,9 @@
+<?xml version="1.0" standalone="yes"?>
+<planView>
+    <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="10.0">
+        <line/>
+    </geometry>
+    <geometry s="10.0" x="10.0" y="0.0" hdg="0.0" length="20.0">
+        <line/>
+    </geometry>
+</planView>

@@ -1,0 +1,24 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <road name="r2" length="20.0" id="2" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="30.0" y="0.0" hdg="0.0" length="20.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <!-- nested include, the path is relative to this file -->
+                    <include file="lane_2.xml"/>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <!-- the root element differs from the parent of <include>, so the root element itself is inserted -->
+    <include file="road_3.xml"/>
+</OpenDRIVE>
