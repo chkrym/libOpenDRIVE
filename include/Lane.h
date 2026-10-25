@@ -88,8 +88,11 @@ struct Lane
     bool        level = false;
     std::string type = "";
 
-    std::optional<int> predecessor;
-    std::optional<int> successor;
+    std::optional<int> predecessor; // first <predecessor> link, kept for compatibility
+    std::optional<int> successor;   // first <successor> link, kept for compatibility
+    // OpenDRIVE 1.6.1, 9.4 Lane linkage: a lane may have multiple predecessors / successors (lane splits and merges)
+    std::vector<int> predecessors;
+    std::vector<int> successors;
 
     CubicProfile lane_width;
     CubicProfile lane_border; // <border> elements as defined in file (OpenDRIVE >= 1.5), t-position of outer border

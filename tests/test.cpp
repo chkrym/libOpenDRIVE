@@ -121,6 +121,38 @@ TEST_CASE("Single side lane sections", "[xodr][single_side]")
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
 }
 
+TEST_CASE("Multiple lane predecessors and successors", "[xodr][lane_link]")
+{
+    const odr::OpenDriveMap odr_map("lane_multi_link.xodr");
+
+    const odr::Lane split = odr_map.get_road("1").get_lanesection(0.0).get_lane(-1);
+    REQUIRE(split.successors == std::vector<int>{-1, -2});
+    REQUIRE(split.successor == -1); // first link
+    REQUIRE(split.predecessors.empty());
+    REQUIRE(!split.predecessor.has_value());
+
+    const odr::Lane merge = odr_map.get_road("2").get_lanesection(0.0).get_lane(-1);
+    REQUIRE(merge.predecessors == std::vector<int>{-1, -2});
+
+    const std::vector<const odr::Lane*> successors = odr_map.get_adjacent_lanes(split, false);
+    REQUIRE(successors.size() == 2);
+    REQUIRE(successors.at(1)->key == odr::LaneKey("1", 25.0, -2));
+    REQUIRE(odr_map.get_adjacent_lanes(merge, true).size() == 2);
+
+    const odr::RoutingGraph routing_graph = odr_map.get_routing_graph();
+
+    // the split is in the routing graph in both directions of the reference line
+    std::vector<odr::LaneKey> lane_successors = routing_graph.get_lane_successors(odr::LaneKey("1", 0.0, -1));
+    REQUIRE(lane_successors.size() == 2);
+    std::vector<odr::LaneKey> lane_predecessors = routing_graph.get_lane_predecessors(odr::LaneKey("1", 0.0, 1));
+    REQUIRE(lane_predecessors.size() == 2);
+
+    // both lanes after the split merge into road 2
+    REQUIRE(routing_graph.get_lane_predecessors(odr::LaneKey("2", 0.0, -1)).size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 25.0, -2), odr::LaneKey("2", 0.0, -1)).size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 0.0, -1), odr::LaneKey("2", 0.0, -1)).size() == 3);
+}
+
 TEST_CASE("Poly3 geometry", "[xodr][poly3]")
 {
     odr::OpenDriveMap odr_map("poly3.xodr", false);

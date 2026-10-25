@@ -37,8 +37,9 @@ public:
     Station                    get_station(const std::string& id) const;
     std::vector<Station>       get_stations() const;
 
-    const LaneSection* get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const;
-    const Lane*        get_adjacent_lane(const Lane& lane, const bool predecessor) const;
+    const LaneSection*       get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const;
+    const Lane*              get_adjacent_lane(const Lane& lane, const bool predecessor) const;
+    std::vector<const Lane*> get_adjacent_lanes(const Lane& lane, const bool predecessor) const;
 
     RoadNetworkMesh get_road_network_mesh(const double eps) const;
     RoutingGraph    get_routing_graph() const;
