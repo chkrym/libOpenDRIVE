@@ -569,7 +569,7 @@ TEST_CASE("Road mark simple types", "[xodr][roadmark]")
     }
     REQUIRE(solid_solid[0].t_offset == -solid_solid[1].t_offset);
 
-    // "solid broken": solid line at positive t, broken line at negative t
+    // right lane: "solid broken" runs from inside (+t) to outside (-t)
     const std::vector<odr::RoadMark> solid_broken = lane.get_roadmarks(60.0, 80.0);
     REQUIRE(solid_broken.size() == 1 + static_cast<std::size_t>(std::ceil(20.0 / period)));
     REQUIRE(solid_broken[0].t_offset == 0.15);
@@ -579,6 +579,14 @@ TEST_CASE("Road mark simple types", "[xodr][roadmark]")
         REQUIRE(solid_broken[idx].t_offset == -0.15);
         REQUIRE(solid_broken[idx].s_end - solid_broken[idx].s_start <= odr::ROADMARK_BROKEN_LENGTH);
     }
+
+    // left lane: "solid broken" runs from inside (-t, towards the center lane) to outside (+t)
+    const std::vector<odr::RoadMark> left_solid_broken = road.get_lanesection(0.0).get_lane(1).get_roadmarks(0.0, 20.0);
+    REQUIRE(left_solid_broken.size() == 1 + static_cast<std::size_t>(std::ceil(20.0 / period)));
+    REQUIRE(left_solid_broken[0].t_offset == -odr::ROADMARK_WEIGHT_STANDARD_WIDTH);
+    REQUIRE(left_solid_broken[0].s_end == 20.0);
+    for (std::size_t idx = 1; idx < left_solid_broken.size(); idx++)
+        REQUIRE(left_solid_broken[idx].t_offset == odr::ROADMARK_WEIGHT_STANDARD_WIDTH);
 
     // other keywords stay a single solid line
     const std::vector<odr::RoadMark> botts_dots = lane.get_roadmarks(80.0, 100.0);
