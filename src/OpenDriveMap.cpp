@@ -698,10 +698,21 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
                 lane.additional_data = extract_additional_data(lane_node);
 
-                if (const pugi::xml_attribute id_attr = lane_node.child("link").child("predecessor").attribute("id"))
-                    lane.predecessor = id_attr.as_int();
-                if (const pugi::xml_attribute id_attr = lane_node.child("link").child("successor").attribute("id"))
-                    lane.successor = id_attr.as_int();
+                // OpenDRIVE 1.6.1, 9.4 Lane linkage: "Multiple predecessors and successors shall be used" for lane splits and merges
+                for (const pugi::xml_node predecessor_node : lane_node.child("link").children("predecessor"))
+                {
+                    if (const pugi::xml_attribute id_attr = predecessor_node.attribute("id"))
+                        lane.predecessors.push_back(id_attr.as_int());
+                }
+                for (const pugi::xml_node successor_node : lane_node.child("link").children("successor"))
+                {
+                    if (const pugi::xml_attribute id_attr = successor_node.attribute("id"))
+                        lane.successors.push_back(id_attr.as_int());
+                }
+                if (!lane.predecessors.empty())
+                    lane.predecessor = lane.predecessors.front();
+                if (!lane.successors.empty())
+                    lane.successor = lane.successors.front();
 
                 for (const pugi::xml_node lane_width_node : lane_node.children("width"))
                 {
@@ -968,8 +979,11 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                     Lane lane = prev_lane;
                     lane.key.lanesection_s0 = s0;
                     lane.predecessor = id;
+                    lane.predecessors = {id};
                     lane.successor = prev_lane.successor;
+                    lane.successors = prev_lane.successors;
                     prev_lane.successor = id;
+                    prev_lane.successors = {id};
                     lanesection.id_to_lane.insert({id, lane});
                 }
             }
@@ -1485,6 +1499,24 @@ const Lane* OpenDriveMap::get_adjacent_lane(const Lane& lane, const bool predece
     return nullptr;
 }
 
+std::vector<const Lane*> OpenDriveMap::get_adjacent_lanes(const Lane& lane, const bool predecessor) const
+{
+    std::vector<const Lane*> adjacent_lanes;
+
+    const LaneSection* adjacent_lanesec = this->get_adjacent_lanesection(lane.key.road_id, lane.key.lanesection_s0, predecessor);
+    if (!adjacent_lanesec)
+        return adjacent_lanes;
+
+    for (const int adjacent_lane_id : predecessor ? lane.predecessors : lane.successors)
+    {
+        const auto adjacent_lane_iter = adjacent_lanesec->id_to_lane.find(adjacent_lane_id);
+        if (adjacent_lane_iter != adjacent_lanesec->id_to_lane.end())
+            adjacent_lanes.push_back(&(adjacent_lane_iter->second));
+    }
+
+    return adjacent_lanes;
+}
+
 RoadNetworkMesh OpenDriveMap::get_road_network_mesh(const double eps) const
 {
     RoadNetworkMesh  out_mesh;
@@ -1557,16 +1589,14 @@ RoutingGraph OpenDriveMap::get_routing_graph() const
             {
                 const bool lane_follows_road_direction = lane.key.lane_id < 0;
 
-                const Lane* predecessor_lane = this->get_adjacent_lane(lane, lane_follows_road_direction);
-                if (predecessor_lane)
+                for (const Lane* predecessor_lane : this->get_adjacent_lanes(lane, lane_follows_road_direction))
                 {
                     const Road&  predecessor_road = this->id_to_road.at(predecessor_lane->key.road_id);
                     const double lane_length = predecessor_road.get_lanesection_length(predecessor_lane->key.lanesection_s0);
                     routing_graph.add_edge(RoutingGraphEdge(predecessor_lane->key, lane.key, lane_length));
                 }
 
-                const Lane* successor_lane = this->get_adjacent_lane(lane, !lane_follows_road_direction);
-                if (successor_lane)
+                for (const Lane* successor_lane : this->get_adjacent_lanes(lane, !lane_follows_road_direction))
                 {
                     const double lane_length = road.get_lanesection_length(lane.key.lanesection_s0);
                     routing_graph.add_edge(RoutingGraphEdge(lane.key, successor_lane->key, lane_length));
