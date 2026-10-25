@@ -536,6 +536,57 @@ TEST_CASE("Road mark line color", "[xodr][roadmark]")
     REQUIRE(mesh_colors == std::set<std::string>{"yellow", "white", "blue"});
 }
 
+TEST_CASE("Road mark simple types", "[xodr][roadmark]")
+{
+    const odr::OpenDriveMap odr_map("roadmark_simple_types.xodr", false);
+    const odr::Road         road = odr_map.get_road("1");
+    const odr::Lane         lane = road.get_lanesection(0.0).get_lane(-1);
+
+    // "none" produces no road mark
+    REQUIRE(lane.get_roadmarks(0.0, 20.0).empty());
+
+    // "broken": dashes of ROADMARK_BROKEN_LENGTH every ROADMARK_BROKEN_LENGTH + ROADMARK_BROKEN_SPACE, clipped to the group
+    const std::vector<odr::RoadMark> broken = lane.get_roadmarks(20.0, 40.0);
+    REQUIRE(broken.size() == 2);
+    REQUIRE(broken[0].s_start == 20.0);
+    REQUIRE(broken[0].s_end == 20.0 + odr::ROADMARK_BROKEN_LENGTH);
+    REQUIRE(broken[1].s_start == 20.0 + odr::ROADMARK_BROKEN_LENGTH + odr::ROADMARK_BROKEN_SPACE);
+    REQUIRE(broken[1].s_end <= 40.0);
+    REQUIRE(broken[0].t_offset == 0.0);
+
+    // "solid solid": two solid lines spaced by the line width
+    const std::vector<odr::RoadMark> solid_solid = lane.get_roadmarks(40.0, 60.0);
+    REQUIRE(solid_solid.size() == 2);
+    for (const odr::RoadMark& roadmark : solid_solid)
+    {
+        REQUIRE(roadmark.s_start == 40.0);
+        REQUIRE(roadmark.s_end == 60.0);
+        REQUIRE(roadmark.width == odr::ROADMARK_WEIGHT_BOLD_WIDTH);
+        REQUIRE(roadmark.color == "yellow");
+        REQUIRE(std::abs(roadmark.t_offset) == odr::ROADMARK_WEIGHT_BOLD_WIDTH);
+    }
+    REQUIRE(solid_solid[0].t_offset == -solid_solid[1].t_offset);
+
+    // "solid broken": solid line at positive t, broken line at negative t
+    const std::vector<odr::RoadMark> solid_broken = lane.get_roadmarks(60.0, 80.0);
+    REQUIRE(solid_broken.size() == 3);
+    REQUIRE(solid_broken[0].t_offset == 0.15);
+    REQUIRE(solid_broken[0].s_end == 80.0);
+    for (std::size_t idx = 1; idx < solid_broken.size(); idx++)
+    {
+        REQUIRE(solid_broken[idx].t_offset == -0.15);
+        REQUIRE(solid_broken[idx].s_end - solid_broken[idx].s_start <= odr::ROADMARK_BROKEN_LENGTH);
+    }
+
+    // other keywords stay a single solid line
+    const std::vector<odr::RoadMark> botts_dots = lane.get_roadmarks(80.0, 100.0);
+    REQUIRE(botts_dots.size() == 1);
+    REQUIRE(botts_dots[0].s_start == 80.0);
+    REQUIRE(botts_dots[0].s_end == 100.0);
+
+    REQUIRE(!odr_map.get_road_network_mesh(0.1).roadmarks_mesh.vertices.empty());
+}
+
 TEST_CASE("Surface CRG references and additional data", "[xodr][crg][additional_data]")
 {
     const odr::OpenDriveMap odr_map("crg_additional_data.xodr");

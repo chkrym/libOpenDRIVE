@@ -10,6 +10,9 @@ namespace odr
 {
 const double ROADMARK_WEIGHT_STANDARD_WIDTH = 0.12;
 const double ROADMARK_WEIGHT_BOLD_WIDTH = 0.25;
+// default pattern of a broken line for a <roadMark> @type without a <type> definition
+const double ROADMARK_BROKEN_LENGTH = 3.0;
+const double ROADMARK_BROKEN_SPACE = 9.0;
 
 struct RoadMarksLine
 {
