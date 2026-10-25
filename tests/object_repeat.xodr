@@ -1,0 +1,35 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="object_repeat" version="1.00"/>
+    <road name="r1" length="200.0" id="1" junction="-1">
+        <link/>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="200.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+        <objects>
+            <object id="box" name="block" type="barrier" s="0.0" t="5.0" zOffset="0.0" hdg="0.0" length="1.0" width="1.0" height="1.0" orientation="none">
+                <repeat s="0.0" length="100.0" distance="50.0" lengthStart="2.0" lengthEnd="6.0"/>
+            </object>
+            <object id="pole" name="pole" type="pole" s="0.0" t="-5.0" zOffset="0.0" radius="1.0" height="3.0" orientation="none">
+                <repeat s="0.0" length="100.0" distance="50.0" radiusStart="0.1" radiusEnd="0.5"/>
+            </object>
+            <object id="pipe" name="pipe" type="barrier" s="0.0" t="10.0" zOffset="0.0" height="0.5" orientation="none">
+                <repeat s="0.0" length="20.0" distance="0.0" radiusStart="0.2" radiusEnd="0.4"/>
+            </object>
+        </objects>
+    </road>
+</OpenDRIVE>

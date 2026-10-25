@@ -4,6 +4,7 @@
 #include "Math.hpp"
 #include "Mesh.h"
 
+#include <cmath>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,7 +24,11 @@ struct RoadObjectRepeat
                      double height_start,
                      double height_end,
                      double z_offset_start,
-                     double z_offset_end);
+                     double z_offset_end,
+                     double length_start = NAN,
+                     double length_end = NAN,
+                     double radius_start = NAN,
+                     double radius_end = NAN);
 
     double s0 = 0;
     double length = 0;
@@ -36,6 +41,10 @@ struct RoadObjectRepeat
     double height_end = 0;
     double z_offset_start = 0;
     double z_offset_end = 0;
+    double length_start = NAN; // OpenDRIVE 1.6.1, 11.1, NAN if not set
+    double length_end = NAN;
+    double radius_start = NAN;
+    double radius_end = NAN;
 };
 
 struct RoadObjectCorner
