@@ -3,9 +3,31 @@
 
 #include <algorithm>
 #include <iterator>
+#include <sstream>
+#include <utility>
 
 namespace odr
 {
+
+namespace
+{
+// lines {t_offset, is_broken} of a <roadMark> @type without a <type> definition; double lines are spaced by the line width.
+// OpenDRIVE 1.6.1 e_roadMarkType: the keywords run from inside to outside, for the center lane from left to right
+std::vector<std::pair<double, bool>> get_default_roadmark_lines(const std::string& type, const double width, const int lane_id)
+{
+    std::istringstream       type_stream(type);
+    std::vector<std::string> keywords{std::istream_iterator<std::string>(type_stream), std::istream_iterator<std::string>()};
+    const auto               is_line_keyword = [](const std::string& keyword) { return keyword == "solid" || keyword == "broken"; };
+
+    if (keywords.size() == 2 && is_line_keyword(keywords[0]) && is_line_keyword(keywords[1]))
+    {
+        // inside is towards t = 0, i.e. -t for left lanes; the center lane and right lanes start at +t
+        const double t_first = lane_id > 0 ? -width : width;
+        return {{t_first, keywords[0] == "broken"}, {-t_first, keywords[1] == "broken"}};
+    }
+    return {{0.0, type == "broken"}};
+}
+} // namespace
 
 HeightOffset::HeightOffset(double inner, double outer) : inner(inner), outer(outer) {}
 
@@ -89,19 +111,48 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
         }
         else if (roadmark_group.roadmark_lines.empty())
         {
+            // OpenDRIVE 1.6.1, 9.6: "none" has no visible road mark
+            if (roadmark_group.type == "none")
+                continue;
+
             if (roadmark_group.width > 0)
                 width = roadmark_group.width;
 
-            roadmarks.push_back(RoadMark(this->key.road_id,
-                                         this->key.lanesection_s0,
-                                         this->id,
-                                         roadmark_group_s0,
-                                         s_start_roadmark_group,
-                                         s_end_roadmark_group,
-                                         0,
-                                         width,
-                                         roadmark_group.type,
-                                         roadmark_group.color));
+            for (const auto& [t_offset, is_broken] : get_default_roadmark_lines(roadmark_group.type, width, this->id))
+            {
+                if (!is_broken)
+                {
+                    roadmarks.push_back(RoadMark(this->key.road_id,
+                                                 this->key.lanesection_s0,
+                                                 this->id,
+                                                 roadmark_group_s0,
+                                                 s_start_roadmark_group,
+                                                 s_end_roadmark_group,
+                                                 t_offset,
+                                                 width,
+                                                 roadmark_group.type,
+                                                 roadmark_group.color));
+                    continue;
+                }
+
+                for (double s_start_single_roadmark = roadmark_group_s0; s_start_single_roadmark < s_end_roadmark_group;
+                     s_start_single_roadmark += (ROADMARK_BROKEN_LENGTH + ROADMARK_BROKEN_SPACE))
+                {
+                    const double s_end_single_roadmark = std::min(s_end_roadmark_group, s_start_single_roadmark + ROADMARK_BROKEN_LENGTH);
+                    if (s_end_single_roadmark <= s_start_roadmark_group)
+                        continue;
+                    roadmarks.push_back(RoadMark(this->key.road_id,
+                                                 this->key.lanesection_s0,
+                                                 this->id,
+                                                 roadmark_group_s0,
+                                                 std::max(s_start_single_roadmark, s_start_roadmark_group),
+                                                 s_end_single_roadmark,
+                                                 t_offset,
+                                                 width,
+                                                 roadmark_group.type,
+                                                 roadmark_group.color));
+                }
+            }
         }
         else
         {
