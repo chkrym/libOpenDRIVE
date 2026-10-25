@@ -37,6 +37,18 @@
 namespace odr
 {
 
+// lane section of a road at s, s is clamped to the road length
+const LaneSection* get_lanesection_at(const Road& road, const double s)
+{
+    if (road.s_to_lanesection.empty())
+        return nullptr;
+
+    auto s_lanesec_iter = road.s_to_lanesection.upper_bound(std::min(std::max(s, 0.0), road.length));
+    if (s_lanesec_iter != road.s_to_lanesection.begin())
+        s_lanesec_iter--;
+    return &(s_lanesec_iter->second);
+}
+
 std::vector<LaneValidityRecord> extract_lane_validity_records(const pugi::xml_node& xml_node)
 {
     std::vector<LaneValidityRecord> lane_validities;
@@ -526,7 +538,16 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                     type_str.c_str());
                 link.type = (type_str == "road") ? RoadLink::Type::Road : RoadLink::Type::Junction;
 
-                if (link.type == RoadLink::Type::Road)
+                // OpenDRIVE 1.6.1, 8.2: "@contactPoint shall be used for regular junctions; @elementS and @elementDir shall be used for
+                // virtual junctions"
+                const pugi::xml_attribute element_s_attr = road_link_node.attribute("elementS");
+                if (link.type == RoadLink::Type::Road && element_s_attr)
+                {
+                    link.element_s = element_s_attr.as_double();
+                    if (const pugi::xml_attribute element_dir_attr = road_link_node.attribute("elementDir"))
+                        link.element_dir = element_dir_attr.as_string();
+                }
+                else if (link.type == RoadLink::Type::Road)
                 {
                     // junction connection has no contact point
                     std::string contact_point_str = road_link_node.attribute("contactPoint").as_string("");
@@ -1550,7 +1571,15 @@ const LaneSection* OpenDriveMap::get_adjacent_lanesection(const std::string& roa
 
     // adjacent lanesection not in the same road
     const RoadLink& road_link = predecessor ? road.predecessor : road.successor;
-    if (road_link.type == RoadLink::Type::Road && road_link.contact_point != RoadLink::ContactPoint::None)
+    if (road_link.type == RoadLink::Type::Road && road_link.element_s)
+    {
+        // OpenDRIVE 1.6.1, 8.2: linked within the other road (virtual junction)
+        const auto next_road_iter = this->id_to_road.find(road_link.id);
+        if (next_road_iter == this->id_to_road.end())
+            return nullptr;
+        return get_lanesection_at(next_road_iter->second, road_link.element_s.value());
+    }
+    else if (road_link.type == RoadLink::Type::Road && road_link.contact_point != RoadLink::ContactPoint::None)
     {
         const auto next_road_iter = this->id_to_road.find(road_link.id);
         if (next_road_iter == this->id_to_road.end())
@@ -1627,6 +1656,23 @@ Mesh3D OpenDriveMap::get_road_signal_mesh(const RoadSignal& road_signal) const
                   pos.road_id.c_str());
     }
     return road.get_road_signal_mesh(road_signal);
+}
+
+const LaneSection* OpenDriveMap::get_junction_link_lanesection(const JunctionConnectionLink& link) const
+{
+    if (link.element_type != "road")
+        return nullptr;
+
+    const auto road_iter = this->id_to_road.find(link.element_id);
+    if (road_iter == this->id_to_road.end() || road_iter->second.s_to_lanesection.empty())
+        return nullptr;
+
+    const Road& road = road_iter->second;
+    if (link.element_s)
+        return get_lanesection_at(road, link.element_s.value());
+    if (link.contact_point == "end")
+        return &(road.s_to_lanesection.rbegin()->second);
+    return &(road.s_to_lanesection.begin()->second);
 }
 
 RoadNetworkMesh OpenDriveMap::get_road_network_mesh(const double eps) const
@@ -1726,6 +1772,32 @@ RoutingGraph OpenDriveMap::get_routing_graph() const
     {
         for (const auto& [_, conn] : junction.id_to_connection)
         {
+            // OpenDRIVE 1.6.1, 10.4.1 Virtual connections: the lane links connect the lanes of the predecessor road to the lanes of
+            // the successor road directly, there is no connecting road
+            if (conn.type == "virtual")
+            {
+                if (!conn.predecessor || !conn.successor)
+                    continue;
+
+                const LaneSection* from_lanesec = this->get_junction_link_lanesection(conn.predecessor.value());
+                const LaneSection* to_lanesec = this->get_junction_link_lanesection(conn.successor.value());
+                if (!from_lanesec || !to_lanesec)
+                    continue;
+
+                const Road& from_road = this->id_to_road.at(from_lanesec->road_id);
+                for (const JunctionLaneLink& lane_link : conn.lane_links)
+                {
+                    if (lane_link.from == 0 || lane_link.to == 0 || from_lanesec->id_to_lane.count(lane_link.from) == 0 ||
+                        to_lanesec->id_to_lane.count(lane_link.to) == 0)
+                        continue;
+
+                    const LaneKey from(from_lanesec->road_id, from_lanesec->s0, lane_link.from);
+                    const LaneKey to(to_lanesec->road_id, to_lanesec->s0, lane_link.to);
+                    routing_graph.add_edge(RoutingGraphEdge(from, to, from_road.get_lanesection_length(*from_lanesec)));
+                }
+                continue;
+            }
+
             auto incoming_road_iter = id_to_road.find(conn.incoming_road);
             auto connecting_road_iter = id_to_road.find(conn.connecting_road);
             if (incoming_road_iter == id_to_road.end() || connecting_road_iter == id_to_road.end())
@@ -1733,30 +1805,57 @@ RoutingGraph OpenDriveMap::get_routing_graph() const
 
             const Road& incoming_road = incoming_road_iter->second;
             const Road& connecting_road = connecting_road_iter->second;
+            if (incoming_road.s_to_lanesection.empty() || connecting_road.s_to_lanesection.empty())
+                continue;
 
-            const LaneSection& incoming_lanesec =
-                (incoming_road.successor.type == RoadLink::Type::Junction && incoming_road.successor.id == junction.id)
-                    ? incoming_road.s_to_lanesection.rbegin()->second
-                    : incoming_road.s_to_lanesection.begin()->second;
+            const bool connecting_road_starts_at_incoming = (conn.contact_point != JunctionConnection::ContactPoint::End);
 
-            const LaneSection& connecting_lanesec = (conn.contact_point == JunctionConnection::ContactPoint::Start)
-                                                        ? connecting_road.s_to_lanesection.begin()->second
-                                                        : connecting_road.s_to_lanesection.rbegin()->second;
+            const LaneSection* incoming_lanesec = nullptr;
+            if (incoming_road.successor.type == RoadLink::Type::Junction && incoming_road.successor.id == junction.id)
+            {
+                incoming_lanesec = &(incoming_road.s_to_lanesection.rbegin()->second);
+            }
+            else if (incoming_road.predecessor.type == RoadLink::Type::Junction && incoming_road.predecessor.id == junction.id)
+            {
+                incoming_lanesec = &(incoming_road.s_to_lanesection.begin()->second);
+            }
+            else
+            {
+                // OpenDRIVE 1.6.1, 10.4 Virtual junctions: "The main incoming road within a virtual junction does not need to end before
+                // the junction area". Use @elementS of the connecting road's link to the incoming road, else the closest point on the
+                // incoming road's reference line.
+                const RoadLink& connecting_road_link = connecting_road_starts_at_incoming ? connecting_road.predecessor : connecting_road.successor;
+                double          incoming_s = 0.0;
+                if (connecting_road_link.type == RoadLink::Type::Road && connecting_road_link.id == incoming_road.id &&
+                    connecting_road_link.element_s)
+                {
+                    incoming_s = connecting_road_link.element_s.value();
+                }
+                else if (junction.type == "virtual")
+                {
+                    const Vec3D contact_pt = connecting_road.ref_line.get_xyz(connecting_road_starts_at_incoming ? 0.0 : connecting_road.length);
+                    incoming_s = incoming_road.ref_line.match(contact_pt[0], contact_pt[1]);
+                }
+                incoming_lanesec = get_lanesection_at(incoming_road, incoming_s);
+            }
+
+            const LaneSection& connecting_lanesec = connecting_road_starts_at_incoming ? connecting_road.s_to_lanesection.begin()->second
+                                                                                       : connecting_road.s_to_lanesection.rbegin()->second;
 
             for (const JunctionLaneLink& lane_link : conn.lane_links)
             {
                 if (lane_link.from == 0 || lane_link.to == 0)
                     continue;
 
-                auto from_lane_iter = incoming_lanesec.id_to_lane.find(lane_link.from);
+                auto from_lane_iter = incoming_lanesec->id_to_lane.find(lane_link.from);
                 auto to_lane_iter = connecting_lanesec.id_to_lane.find(lane_link.to);
 
-                if (from_lane_iter == incoming_lanesec.id_to_lane.end() || to_lane_iter == connecting_lanesec.id_to_lane.end())
+                if (from_lane_iter == incoming_lanesec->id_to_lane.end() || to_lane_iter == connecting_lanesec.id_to_lane.end())
                     continue;
 
-                const LaneKey from(incoming_road.id, incoming_lanesec.s0, from_lane_iter->second.id);
+                const LaneKey from(incoming_road.id, incoming_lanesec->s0, from_lane_iter->second.id);
                 const LaneKey to(connecting_road.id, connecting_lanesec.s0, to_lane_iter->second.id);
-                const double  lane_length = incoming_road.get_lanesection_length(incoming_lanesec);
+                const double  lane_length = incoming_road.get_lanesection_length(*incoming_lanesec);
 
                 routing_graph.add_edge(RoutingGraphEdge(from, to, lane_length));
             }

@@ -1,0 +1,138 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="virtual_junction_routing" version="1.00"/>
+    <!-- main road 1 does not end at the virtual junction 555. Road 2 branches off at s=30 (road link @elementS), road 4 at s=80
+         (no @elementS, found from its start point), and driveway 99 is connected by virtual connections at s=60 / s=70 (10.4.1) -->
+    <road name="r1" length="100.0" id="1" junction="-1">
+        <link></link>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="100.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <left>
+                    <lane id="1" type="driving" level="false">
+                        <link><successor id="1"/></link>
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </left>
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <link><successor id="-1"/></link>
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+            <laneSection s="50.0">
+                <left>
+                    <lane id="1" type="driving" level="false">
+                        <link><predecessor id="1"/></link>
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </left>
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <link><predecessor id="-1"/></link>
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <road name="r99" length="20.0" id="99" junction="-1">
+        <link></link>
+        <planView>
+            <geometry s="0.0" x="60.0" y="-25.0" hdg="1.5707963267948966" length="20.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <left>
+                    <lane id="1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </left>
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <road name="r2" length="10.0" id="2" junction="555">
+        <link>
+            <predecessor elementType="road" elementId="1" elementS="30.0" elementDir="+"/>
+        </link>
+        <planView>
+            <geometry s="0.0" x="30.0" y="-3.5" hdg="-1.5707963267948966" length="10.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <link><predecessor id="-1"/></link>
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <road name="r4" length="10.0" id="4" junction="555">
+        <link>
+            <predecessor elementType="junction" elementId="555"/>
+        </link>
+        <planView>
+            <geometry s="0.0" x="80.0" y="-3.5" hdg="-1.5707963267948966" length="10.0">
+                <line/>
+            </geometry>
+        </planView>
+        <lanes>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false"/>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0"/>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+    </road>
+    <junction name="parking_entry" type="virtual" id="555">
+        <connection id="0" incomingRoad="1" connectingRoad="2" contactPoint="start">
+            <laneLink from="-1" to="-1"/>
+        </connection>
+        <connection id="1" incomingRoad="1" connectingRoad="4" contactPoint="start">
+            <laneLink from="-1" to="-1"/>
+        </connection>
+        <connection id="3" type="virtual">
+            <predecessor elementType="road" elementId="99" contactPoint="end"/>
+            <successor elementType="road" elementId="1" elementS="60.0" elementDir="-"/>
+            <laneLink from="-1" to="1"/>
+        </connection>
+        <connection id="5" type="virtual">
+            <predecessor elementType="road" elementId="1" elementS="70.0" elementDir="-"/>
+            <successor elementType="road" elementId="99" contactPoint="end"/>
+            <laneLink from="1" to="1"/>
+        </connection>
+    </junction>
+</OpenDRIVE>
