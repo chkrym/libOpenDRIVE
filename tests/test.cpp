@@ -1262,3 +1262,45 @@ TEST_CASE("Object outline meshes", "[xodr][objects]")
     for (const odr::Vec3D& pt : island_mesh.vertices)
         REQUIRE(std::abs(pt[1] - 10.0) == Catch::Approx(1.0));
 }
+
+TEST_CASE("Object marking and border meshes", "[xodr][objects]")
+{
+    const odr::OpenDriveMap odr_map("object_markings.xodr");
+    const odr::Road&        road = odr_map.get_road("1");
+
+    // solid marking on the left side of the bounding box, dashed marking on the front side
+    const odr::RoadObject& parking = road.id_to_object.at("parking");
+    const odr::Mesh3D      parking_markings = road.get_road_object_markings_mesh(parking);
+    REQUIRE(parking_markings.vertices.size() == 4 + 2 * 4);
+    REQUIRE(parking_markings.st_coordinates.size() == parking_markings.vertices.size());
+    for (std::size_t v = 0; v < 4; v++)
+    {
+        REQUIRE(parking_markings.vertices[v][1] == Catch::Approx(-4.75).margin(0.05 + 1e-9));
+        REQUIRE(parking_markings.vertices[v][2] == Catch::Approx(0.005));
+    }
+    REQUIRE(std::min(parking_markings.vertices[0][0], parking_markings.vertices[2][0]) == Catch::Approx(17.5));
+    REQUIRE(std::max(parking_markings.vertices[0][0], parking_markings.vertices[2][0]) == Catch::Approx(22.5));
+    // front dashes at v = [0.25, 0.75] and [1.25, 1.75] from the start of the side at v = -1.25
+    REQUIRE(parking_markings.vertices[4][1] == Catch::Approx(-6.0 - 1.25 + 0.25).margin(1e-9));
+    REQUIRE(parking_markings.vertices[6][1] == Catch::Approx(-6.0 - 1.25 + 0.75).margin(1e-9));
+    REQUIRE(parking_markings.vertices[8][1] == Catch::Approx(-6.0 - 1.25 + 1.25).margin(1e-9));
+    REQUIRE(parking_markings.vertices[10][1] == Catch::Approx(-6.0 - 1.25 + 1.75).margin(1e-9));
+    REQUIRE(std::min(parking_markings.vertices[4][0], parking_markings.vertices[5][0]) == Catch::Approx(22.5 - 0.05));
+    REQUIRE(std::max(parking_markings.vertices[4][0], parking_markings.vertices[5][0]) == Catch::Approx(22.5 + 0.05));
+
+    // dashed marking between referenced outline points: 7.6158 m long, 0.25 m pattern -> 31 dashes
+    const odr::Mesh3D crosswalk_markings = road.get_road_object_markings_mesh(road.id_to_object.at("crosswalk"));
+    REQUIRE(crosswalk_markings.vertices.size() == 31 * 4);
+    REQUIRE(crosswalk_markings.indices.size() == 31 * 6);
+
+    // border along the complete closed outline at the top of the outline, and along two referenced corners
+    const odr::Mesh3D island_borders = road.get_road_object_borders_mesh(road.id_to_object.at("island"));
+    REQUIRE(island_borders.vertices.size() == 5 * 2 + 2 * 2);
+    REQUIRE(island_borders.indices.size() == 4 * 6 + 6);
+    for (const odr::Vec3D& pt : island_borders.vertices)
+        REQUIRE(pt[2] == Catch::Approx(0.15));
+
+    // markings and borders are part of the road object mesh
+    const odr::Mesh3D island_mesh = road.get_road_object_mesh(road.id_to_object.at("island"), 0.1);
+    REQUIRE(island_mesh.vertices.size() == 8 + island_borders.vertices.size());
+}

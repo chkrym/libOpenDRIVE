@@ -763,31 +763,42 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
         }
     }
 
+    road_obj_mesh.add_mesh(this->get_road_object_markings_mesh(road_object));
+    road_obj_mesh.add_mesh(this->get_road_object_borders_mesh(road_object));
+
     return road_obj_mesh;
+}
+
+Vec3D Road::get_road_object_corner_xyz(const RoadObject&       road_object,
+                                       const RoadObjectCorner& corner,
+                                       const double            height,
+                                       const double            s_ins,
+                                       const double            t_ins,
+                                       const double            z_ins) const
+{
+    /* corner position of an object instance; road corners are shifted by the offset of the instance to the original object */
+    if (corner.type == RoadObjectCorner::Type::Local_AbsZ || corner.type == RoadObjectCorner::Type::Local_RelZ)
+    {
+        const Mat3D rot_mat = EulerAnglesToMatrix<double>(road_object.roll, road_object.pitch, road_object.hdg);
+
+        Vec3D       e_s, e_t, e_h;
+        const Vec3D p0 = this->get_xyz(s_ins, t_ins, z_ins, &e_s, &e_t, &e_h);
+        const Mat3D base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
+
+        Vec3D pt = {corner.pt[0], corner.pt[1], corner.pt[2]};
+        if (corner.type == RoadObjectCorner::Type::Local_AbsZ)
+            pt[2] -= p0[2]; // make road relative
+        pt = add(pt, Vec3D{0, 0, height});
+        return add(MatVecMultiplication(base_mat, MatVecMultiplication(rot_mat, pt)), p0);
+    }
+    return this->get_xyz(
+        corner.pt[0] + s_ins - road_object.s0, corner.pt[1] + t_ins - road_object.t0, corner.pt[2] + z_ins - road_object.z0 + height);
 }
 
 Mesh3D Road::get_road_object_outlines_mesh(const RoadObject& road_object, const double s_ins, const double t_ins, const double z_ins) const
 {
-    const Mat3D rot_mat = EulerAnglesToMatrix<double>(road_object.roll, road_object.pitch, road_object.hdg);
-
-    Vec3D       e_s, e_t, e_h;
-    const Vec3D p0 = this->get_xyz(s_ins, t_ins, z_ins, &e_s, &e_t, &e_h);
-    const Mat3D base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
-
-    /* corner position of this object instance; road corners are shifted by the offset of the instance to the original object */
     auto get_corner_xyz = [&](const RoadObjectCorner& corner, const double height) -> Vec3D
-    {
-        if (corner.type == RoadObjectCorner::Type::Local_AbsZ || corner.type == RoadObjectCorner::Type::Local_RelZ)
-        {
-            Vec3D pt = {corner.pt[0], corner.pt[1], corner.pt[2]};
-            if (corner.type == RoadObjectCorner::Type::Local_AbsZ)
-                pt[2] -= p0[2]; // make road relative
-            pt = add(pt, Vec3D{0, 0, height});
-            return add(MatVecMultiplication(base_mat, MatVecMultiplication(rot_mat, pt)), p0);
-        }
-        return this->get_xyz(
-            corner.pt[0] + s_ins - road_object.s0, corner.pt[1] + t_ins - road_object.t0, corner.pt[2] + z_ins - road_object.z0 + height);
-    };
+    { return this->get_road_object_corner_xyz(road_object, corner, height, s_ins, t_ins, z_ins); };
 
     auto is_point_in_polygon = [](const Vec3D& pt, const std::vector<Vec3D>& polygon) -> bool
     {
@@ -888,6 +899,182 @@ Mesh3D Road::get_road_object_outlines_mesh(const RoadObject& road_object, const 
     }
 
     return outlines_mesh;
+}
+
+/* flat strip of the given width centered on the polyline, trimmed by start/stop offset and split into dashes of line_length separated by
+ * space_length (solid if space_length is 0) */
+static Mesh3D get_polyline_strip_mesh(const std::vector<Vec3D>& polyline,
+                                      const double              width,
+                                      const double              line_length,
+                                      const double              space_length,
+                                      const double              start_offset,
+                                      const double              stop_offset)
+{
+    Mesh3D strip_mesh;
+    if (polyline.size() < 2 || width <= 0)
+        return strip_mesh;
+
+    std::vector<double> arc_lengths = {0};
+    for (std::size_t idx = 1; idx < polyline.size(); idx++)
+        arc_lengths.push_back(arc_lengths.back() + euclDistance(polyline.at(idx - 1), polyline.at(idx)));
+
+    /* lateral direction in the xy plane of the segment starting at seg_idx */
+    auto get_seg_normal = [&](const std::size_t seg_idx) -> Vec3D
+    {
+        const Vec3D dir = sub(polyline.at(seg_idx + 1), polyline.at(seg_idx));
+        const Vec3D n = {-dir[1], dir[0], 0};
+        return (n[0] == 0 && n[1] == 0) ? n : normalize(n);
+    };
+
+    auto add_cross_section = [&](const Vec3D& pt, const Vec3D& normal)
+    {
+        strip_mesh.vertices.push_back(add(pt, mut(0.5 * width, normal)));
+        strip_mesh.vertices.push_back(sub(pt, mut(0.5 * width, normal)));
+    };
+
+    const double total_length = arc_lengths.back();
+    const double begin = std::max(0.0, start_offset);
+    const double end = std::min(total_length, total_length - stop_offset);
+    const bool   is_solid = space_length <= 0 || line_length <= 0;
+    for (double dash_start = begin; dash_start < end; dash_start += is_solid ? end : (line_length + space_length))
+    {
+        const double dash_end = is_solid ? end : std::min(dash_start + line_length, end);
+        if (dash_end - dash_start <= 0)
+            continue;
+
+        const std::size_t first_vert_idx = strip_mesh.vertices.size();
+        std::size_t       seg_idx = 0;
+        while (seg_idx + 2 < polyline.size() && arc_lengths.at(seg_idx + 1) <= dash_start)
+            seg_idx++;
+
+        auto get_pt = [&](const double a, const std::size_t i) -> Vec3D
+        {
+            const double seg_len = arc_lengths.at(i + 1) - arc_lengths.at(i);
+            const double p = (seg_len == 0) ? 0 : (a - arc_lengths.at(i)) / seg_len;
+            return add(polyline.at(i), mut(p, sub(polyline.at(i + 1), polyline.at(i))));
+        };
+
+        add_cross_section(get_pt(dash_start, seg_idx), get_seg_normal(seg_idx));
+        while (seg_idx + 2 < polyline.size() && arc_lengths.at(seg_idx + 1) < dash_end)
+        {
+            /* polyline vertex inside the dash - use the averaged normal of both segments */
+            const Vec3D n_sum = add(get_seg_normal(seg_idx), get_seg_normal(seg_idx + 1));
+            add_cross_section(polyline.at(seg_idx + 1), (n_sum[0] == 0 && n_sum[1] == 0) ? n_sum : normalize(n_sum));
+            seg_idx++;
+        }
+        add_cross_section(get_pt(dash_end, seg_idx), get_seg_normal(seg_idx));
+
+        for (std::size_t idx = first_vert_idx; idx + 3 < strip_mesh.vertices.size(); idx += 2)
+        {
+            const std::array<size_t, 6> idx_patch = {idx, idx + 1, idx + 2, idx + 1, idx + 3, idx + 2};
+            strip_mesh.indices.insert(strip_mesh.indices.end(), idx_patch.begin(), idx_patch.end());
+        }
+    }
+
+    return strip_mesh;
+}
+
+/* find the corner with the given id in the outlines of the road object */
+static const RoadObjectCorner* find_road_object_corner(const RoadObject& road_object, const int corner_id)
+{
+    for (const RoadObjectOutline& outline : road_object.outlines)
+    {
+        for (const RoadObjectCorner& corner : outline.outline)
+        {
+            if (corner.id == corner_id)
+                return &corner;
+        }
+    }
+    return nullptr;
+}
+
+Mesh3D Road::get_road_object_markings_mesh(const RoadObject& road_object) const
+{
+    Mesh3D markings_mesh;
+    for (const RoadObjectMarking& marking : road_object.markings)
+    {
+        std::vector<Vec3D> polyline;
+        if (!marking.corner_references.empty())
+        {
+            /* straight lines between the referenced outline points, lifted by the marking thickness */
+            for (const int corner_id : marking.corner_references)
+            {
+                const RoadObjectCorner* corner = find_road_object_corner(road_object, corner_id);
+                if (corner)
+                    polyline.push_back(
+                        this->get_road_object_corner_xyz(road_object, *corner, marking.z_offset, road_object.s0, road_object.t0, road_object.z0));
+            }
+        }
+        else
+        {
+            /* side of the bounding box in the local u/v system; left/right run along +u, front/rear along +v */
+            const double                                      l = road_object.length;
+            const double                                      w = road_object.width;
+            const std::map<std::string, std::array<Vec3D, 2>> side_to_pts = {{"left", {Vec3D{-l / 2, w / 2, 0}, Vec3D{l / 2, w / 2, 0}}},
+                                                                             {"right", {Vec3D{-l / 2, -w / 2, 0}, Vec3D{l / 2, -w / 2, 0}}},
+                                                                             {"front", {Vec3D{l / 2, -w / 2, 0}, Vec3D{l / 2, w / 2, 0}}},
+                                                                             {"rear", {Vec3D{-l / 2, -w / 2, 0}, Vec3D{-l / 2, w / 2, 0}}}};
+            if (side_to_pts.find(marking.side) == side_to_pts.end())
+                continue;
+            for (const Vec3D& pt_uv : side_to_pts.at(marking.side))
+            {
+                const RoadObjectCorner corner(-1, pt_uv, 0, RoadObjectCorner::Type::Local_RelZ);
+                polyline.push_back(
+                    this->get_road_object_corner_xyz(road_object, corner, marking.z_offset, road_object.s0, road_object.t0, road_object.z0));
+            }
+        }
+
+        markings_mesh.add_mesh(
+            get_polyline_strip_mesh(polyline, marking.width, marking.line_length, marking.space_length, marking.start_offset, marking.stop_offset));
+    }
+
+    for (std::size_t idx = markings_mesh.st_coordinates.size(); idx < markings_mesh.vertices.size(); idx++)
+        markings_mesh.st_coordinates.push_back({road_object.s0, road_object.t0});
+
+    return markings_mesh;
+}
+
+Mesh3D Road::get_road_object_borders_mesh(const RoadObject& road_object) const
+{
+    Mesh3D borders_mesh;
+    for (const RoadObjectBorder& border : road_object.borders)
+    {
+        const auto outline_iter = std::find_if(road_object.outlines.begin(),
+                                               road_object.outlines.end(),
+                                               [&](const RoadObjectOutline& outline) { return outline.id == border.outline_id; });
+        if (outline_iter == road_object.outlines.end())
+            continue;
+
+        /* the border follows the top of the outline (the road surface for flat outlines) */
+        std::vector<Vec3D> polyline;
+        if (border.use_complete_outline)
+        {
+            for (const RoadObjectCorner& corner : outline_iter->outline)
+                polyline.push_back(
+                    this->get_road_object_corner_xyz(road_object, corner, corner.height, road_object.s0, road_object.t0, road_object.z0));
+            if (outline_iter->closed && !polyline.empty())
+                polyline.push_back(polyline.front());
+        }
+        else
+        {
+            for (const int corner_id : border.corner_references)
+            {
+                const auto corner_iter = std::find_if(outline_iter->outline.begin(),
+                                                      outline_iter->outline.end(),
+                                                      [&](const RoadObjectCorner& corner) { return corner.id == corner_id; });
+                if (corner_iter != outline_iter->outline.end())
+                    polyline.push_back(this->get_road_object_corner_xyz(
+                        road_object, *corner_iter, corner_iter->height, road_object.s0, road_object.t0, road_object.z0));
+            }
+        }
+
+        borders_mesh.add_mesh(get_polyline_strip_mesh(polyline, border.width, 0, 0, 0, 0));
+    }
+
+    for (std::size_t idx = borders_mesh.st_coordinates.size(); idx < borders_mesh.vertices.size(); idx++)
+        borders_mesh.st_coordinates.push_back({road_object.s0, road_object.t0});
+
+    return borders_mesh;
 }
 
 } // namespace odr

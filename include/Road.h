@@ -129,6 +129,14 @@ public:
                                 const double      roll) const;
     Mesh3D get_road_object_mesh(const RoadObject& road_object, const double eps) const;
     Mesh3D get_road_object_outlines_mesh(const RoadObject& road_object, const double s_ins, const double t_ins, const double z_ins) const;
+    Mesh3D get_road_object_markings_mesh(const RoadObject& road_object) const; // OpenDRIVE 1.6.1, 11.6
+    Mesh3D get_road_object_borders_mesh(const RoadObject& road_object) const;  // OpenDRIVE 1.6.1, 11.7
+    Vec3D  get_road_object_corner_xyz(const RoadObject&       road_object,
+                                      const RoadObjectCorner& corner,
+                                      const double            height,
+                                      const double            s_ins,
+                                      const double            t_ins,
+                                      const double            z_ins) const;
 
     std::set<double>
     approximate_lane_border_linear(const Lane& lane, const double s_start, const double s_end, const double eps, const bool outer = true) const;
