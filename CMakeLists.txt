@@ -7,6 +7,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 option(OPENDRIVE_BUILD_TESTS "Build OpenDrive tests" OFF)
+option(OPENDRIVE_WITH_ZLIB "Read gzip-compressed .xodrz files if zlib is found" ON)
 
 find_package(pugixml QUIET CONFIG)
 if(NOT TARGET pugixml::pugixml)
@@ -65,6 +66,18 @@ endif()
 
 target_link_libraries(OpenDrive PUBLIC pugixml::pugixml)
 
+set(OPENDRIVE_HAS_ZLIB OFF)
+if(OPENDRIVE_WITH_ZLIB)
+    find_package(ZLIB)
+    if(ZLIB_FOUND)
+        set(OPENDRIVE_HAS_ZLIB ON)
+        target_link_libraries(OpenDrive PRIVATE ZLIB::ZLIB)
+        target_compile_definitions(OpenDrive PRIVATE OPENDRIVE_WITH_ZLIB)
+    else()
+        message(WARNING "zlib not found, building without .xodrz support")
+    endif()
+endif()
+
 target_include_directories(
     OpenDrive PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -87,6 +100,9 @@ if(OPENDRIVE_BUILD_TESTS)
         CXX_STANDARD_REQUIRED ON
     )
     target_link_libraries(tests PRIVATE OpenDrive Catch2::Catch2WithMain)
+    if(OPENDRIVE_HAS_ZLIB)
+        target_compile_definitions(tests PRIVATE OPENDRIVE_WITH_ZLIB)
+    endif()
     catch_discover_tests(tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 endif()
 

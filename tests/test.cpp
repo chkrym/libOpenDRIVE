@@ -655,6 +655,22 @@ TEST_CASE("Include files are merged where they appear", "[xodr][include]")
     REQUIRE(road_3.get_lanesection(0.0).id_to_lane.size() == 2);
 }
 
+TEST_CASE("Gzip-compressed xodrz files", "[xodr][xodrz]")
+{
+    const odr::OpenDriveMap odr_map_xodr("single_side.xodr");
+    const odr::OpenDriveMap odr_map_xodrz("single_side.xodrz");
+#ifdef OPENDRIVE_WITH_ZLIB
+    REQUIRE(odr_map_xodrz.header.name == "single_side");
+    REQUIRE(odr_map_xodrz.id_to_road.size() == odr_map_xodr.id_to_road.size());
+    const odr::Road road = odr_map_xodrz.get_road("1");
+    REQUIRE(road.s_to_lanesection.size() == odr_map_xodr.get_road("1").s_to_lanesection.size());
+    REQUIRE(road.get_lanesection(30.0).get_lane(2).type == "driving");
+#else
+    // built without zlib: compressed files are rejected with an error message
+    REQUIRE(odr_map_xodrz.id_to_road.empty());
+#endif
+}
+
 TEST_CASE("Railroad switches and stations", "[xodr][railroad]")
 {
     const odr::OpenDriveMap odr_map("railroad.xodr");
