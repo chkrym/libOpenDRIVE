@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include "Geometries/CubicSpline.h"
 #include "LaneSection.h"
 #include "Math.hpp"
@@ -65,6 +66,8 @@ struct RoadLink
     // linked road, not at its start or end
     std::optional<double>      element_s;
     std::optional<std::string> element_dir; // "+" or "-", direction on the linked road from which the road is entered
+
+    AdditionalData additional_data;
 };
 
 struct RoadNeighbor
@@ -82,6 +85,8 @@ struct SpeedRecord
 
     std::string max = "";
     std::string unit = "";
+
+    AdditionalData additional_data;
 };
 
 class Road

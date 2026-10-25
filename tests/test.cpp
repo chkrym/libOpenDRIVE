@@ -1044,3 +1044,104 @@ TEST_CASE("Signal mesh orientation", "[xodr][signals]")
     REQUIRE(get_lean_s("minus_road", 80.0) == Catch::Approx(-lean)); // positionRoad @hOffset is relative to @orientation too
     REQUIRE(get_lean_s("none", 70.0) == Catch::Approx(lean));        // "none": relative to the reference line
 }
+
+TEST_CASE("Additional data on every element", "[xodr][additional_data]")
+{
+    const odr::OpenDriveMap odr_map("additional_data_all.xodr");
+
+    const auto code_of = [](const odr::AdditionalData& additional_data)
+    { return additional_data.user_data.size() == 1 ? additional_data.user_data[0].code : std::string("<none>"); };
+
+    // header, controller, junction, junction group, station
+    REQUIRE(code_of(odr_map.header.offset->additional_data) == "offset");
+    const odr::Controller controller = odr_map.get_controller("c1");
+    REQUIRE(code_of(controller.additional_data) == "controller");
+    REQUIRE(code_of(controller.controls.at(0).additional_data) == "control");
+
+    const odr::Junction junction = odr_map.get_junction("100");
+    REQUIRE(junction.additional_data.empty());
+    const odr::JunctionConnection& connection = junction.id_to_connection.at("0");
+    REQUIRE(code_of(connection.additional_data) == "connection");
+    REQUIRE(code_of(connection.lane_links.begin()->additional_data) == "lane_link");
+    REQUIRE(code_of(junction.id_to_connection.at("1").predecessor->additional_data) == "connection_predecessor");
+    REQUIRE(code_of(junction.priorities.begin()->additional_data) == "priority");
+    REQUIRE(code_of(junction.id_to_controller.at("c1").additional_data) == "junction_controller");
+    REQUIRE(code_of(odr_map.get_junction_group("g1").additional_data) == "junction_group");
+
+    const odr::Station station = odr_map.get_station("st1");
+    REQUIRE(code_of(station.additional_data) == "station");
+    REQUIRE(code_of(station.platforms.at(0).additional_data) == "platform");
+    REQUIRE(code_of(station.platforms.at(0).segments.at(0).additional_data) == "segment");
+
+    // road level records
+    const odr::Road road = odr_map.get_road("1");
+    REQUIRE(road.additional_data.empty());
+    REQUIRE(code_of(road.predecessor.additional_data) == "road_predecessor");
+    REQUIRE(code_of(road.s_to_speed.at(0.0).additional_data) == "type_speed");
+    REQUIRE(code_of(road.ref_line.s0_to_geometry.at(0.0)->additional_data) == "geometry_1");
+    REQUIRE(road.ref_line.s0_to_geometry.at(50.0)->additional_data.empty());
+    REQUIRE(code_of(road.surface_crgs.at(0).additional_data) == "crg");
+
+    const odr::RailroadSwitch& railroad_switch = road.id_to_switch.at("sw1");
+    REQUIRE(code_of(railroad_switch.additional_data) == "switch");
+    REQUIRE(code_of(railroad_switch.main_track.additional_data) == "main_track");
+    REQUIRE(railroad_switch.side_track.additional_data.empty());
+    REQUIRE(code_of(railroad_switch.partner->additional_data) == "partner");
+
+    // lane records and road marks
+    const odr::LaneSection lanesection = road.get_lanesection(0.0);
+    const odr::Lane        lane = lanesection.get_lane(-1);
+    REQUIRE(code_of(lane.s_to_material.at(0.0).additional_data) == "material");
+    REQUIRE(code_of(lane.s_to_speed.at(0.0).additional_data) == "speed");
+    REQUIRE(code_of(lane.s_to_access.find(0.0)->second.additional_data) == "access");
+    REQUIRE(code_of(lane.s_to_height_offset.at(0.0).additional_data) == "height");
+
+    const odr::Lane lane_0 = lanesection.get_lane(0);
+    REQUIRE(lane_0.roadmark_groups.size() == 1);
+    const odr::RoadMarkGroup& roadmark_group = *lane_0.roadmark_groups.begin();
+    REQUIRE(code_of(roadmark_group.additional_data) == "roadmark");
+    REQUIRE(code_of(roadmark_group.roadmark_lines.begin()->additional_data) == "roadmark_type_line");
+    REQUIRE(code_of(roadmark_group.roadmark_explicit_lines.begin()->additional_data) == "roadmark_explicit_line");
+
+    // objects
+    const odr::RoadObject& road_object = road.id_to_object.at("o1");
+    REQUIRE(road_object.additional_data.empty());
+    REQUIRE(code_of(road_object.repeats.at(0).additional_data) == "repeat");
+    REQUIRE(code_of(road_object.outlines.at(0).additional_data) == "outline");
+    REQUIRE(road_object.outlines.at(0).outline.size() == 3);
+    REQUIRE(code_of(road_object.outlines.at(0).outline.at(0).additional_data) == "corner_local");
+    REQUIRE(road_object.outlines.at(0).outline.at(1).additional_data.empty());
+    REQUIRE(code_of(road_object.outlines.at(0).outline.at(2).additional_data) == "corner_road");
+    REQUIRE(code_of(road_object.materials.at(0).additional_data) == "object_material");
+    REQUIRE(code_of(road_object.lane_validities.at(0).additional_data) == "validity");
+    REQUIRE(code_of(road_object.parking_space->additional_data) == "parking_space");
+    REQUIRE(code_of(road_object.markings.at(0).additional_data) == "marking");
+    REQUIRE(code_of(road_object.borders.at(0).additional_data) == "border");
+    REQUIRE(code_of(road.object_references.at(0).additional_data) == "object_reference");
+    REQUIRE(code_of(road.id_to_tunnel.at("t1").additional_data) == "tunnel");
+    REQUIRE(code_of(road.id_to_bridge.at("b1").additional_data) == "bridge");
+
+    // signals
+    const odr::RoadSignal& road_signal = road.id_to_signal.at("s1");
+    REQUIRE(code_of(road_signal.dependencies.at(0).additional_data) == "dependency");
+    REQUIRE(code_of(road_signal.references.at(0).additional_data) == "signal_element_reference");
+    REQUIRE(code_of(road_signal.position_road->additional_data) == "position_road");
+    REQUIRE(code_of(road.id_to_signal.at("s2").position_inertial->additional_data) == "position_inertial");
+    REQUIRE(code_of(road.signal_references.at(0).additional_data) == "signal_reference");
+
+    // elements without a dedicated structure are found by path
+    REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/road[1]/type[1]")) == "type");
+    REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/road[1]/planView[1]/geometry[2]/line[1]")) == "line_2");
+    REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/road[1]/lanes[1]/laneSection[1]/right[1]/lane[1]/width[1]")) == "width");
+    REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/junctionGroup[1]/junctionReference[1]")) == "junction_reference");
+    REQUIRE(odr_map.get_additional_data("/OpenDRIVE/road[1]/lanes[1]/laneOffset[1]").includes == std::vector<std::string>{"lane_offset.xml"});
+    const odr::AdditionalData elevation_data = odr_map.get_additional_data("/OpenDRIVE/road[1]/elevationProfile[1]/elevation[2]");
+    REQUIRE(elevation_data.data_quality.has_value());
+    REQUIRE(elevation_data.data_quality->error->z_absolute == 0.2);
+    REQUIRE(odr_map.get_additional_data("/OpenDRIVE/road[1]/elevationProfile[1]/elevation[1]").empty());
+    REQUIRE(odr_map.path_to_additional_data.count("/OpenDRIVE/road[1]/elevationProfile[1]/elevation[1]") == 0);
+
+    // the path table also holds the elements with a dedicated structure
+    REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/junction[1]/connection[1]/laneLink[1]")) == "lane_link");
+    REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/header[1]/offset[1]")) == "offset");
+}

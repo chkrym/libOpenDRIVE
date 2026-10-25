@@ -1,0 +1,209 @@
+<?xml version="1.0" standalone="yes"?>
+<OpenDRIVE>
+    <header revMajor="1" revMinor="6" name="additional_data_all" version="1.00">
+        <offset x="0.0" y="0.0" z="0.0" hdg="0.0">
+            <userData code="offset"/>
+        </offset>
+    </header>
+    <road name="r1" length="100.0" id="1" junction="-1">
+        <link>
+            <predecessor elementType="junction" elementId="100">
+                <userData code="road_predecessor"/>
+            </predecessor>
+        </link>
+        <type s="0.0" type="town">
+            <userData code="type"/>
+            <speed max="50" unit="km/h">
+                <userData code="type_speed"/>
+            </speed>
+        </type>
+        <planView>
+            <geometry s="0.0" x="0.0" y="0.0" hdg="0.0" length="50.0">
+                <userData code="geometry_1"/>
+                <line/>
+            </geometry>
+            <geometry s="50.0" x="50.0" y="0.0" hdg="0.0" length="50.0">
+                <line>
+                    <userData code="line_2"/>
+                </line>
+            </geometry>
+        </planView>
+        <elevationProfile>
+            <elevation s="0.0" a="0.0" b="0.0" c="0.0" d="0.0"/>
+            <elevation s="50.0" a="0.0" b="0.0" c="0.0" d="0.0">
+                <dataQuality>
+                    <error xyAbsolute="0.1" zAbsolute="0.2" xyRelative="0.0" zRelative="0.0"/>
+                </dataQuality>
+            </elevation>
+        </elevationProfile>
+        <lanes>
+            <laneOffset s="0.0" a="0.0" b="0.0" c="0.0" d="0.0">
+                <include file="lane_offset.xml"/>
+            </laneOffset>
+            <laneSection s="0.0">
+                <center>
+                    <lane id="0" type="none" level="false">
+                        <roadMark sOffset="0.0" type="solid" weight="standard" color="standard" width="0.12">
+                            <userData code="roadmark"/>
+                            <type name="custom" width="0.12">
+                                <line length="3.0" space="9.0" tOffset="0.0" sOffset="0.0" rule="none" width="0.12">
+                                    <userData code="roadmark_type_line"/>
+                                </line>
+                            </type>
+                            <explicit>
+                                <line length="1.0" tOffset="0.0" sOffset="5.0" rule="none" width="0.12">
+                                    <userData code="roadmark_explicit_line"/>
+                                </line>
+                            </explicit>
+                        </roadMark>
+                    </lane>
+                </center>
+                <right>
+                    <lane id="-1" type="driving" level="false">
+                        <width sOffset="0.0" a="3.5" b="0.0" c="0.0" d="0.0">
+                            <userData code="width"/>
+                        </width>
+                        <material sOffset="0.0" surface="asphalt" friction="0.9">
+                            <userData code="material"/>
+                        </material>
+                        <speed sOffset="0.0" max="13.9" unit="m/s">
+                            <userData code="speed"/>
+                        </speed>
+                        <access sOffset="0.0" rule="allow" restriction="bus">
+                            <userData code="access"/>
+                        </access>
+                        <height sOffset="0.0" inner="0.1" outer="0.1">
+                            <userData code="height"/>
+                        </height>
+                    </lane>
+                </right>
+            </laneSection>
+        </lanes>
+        <objects>
+            <object id="o1" name="o" type="barrier" s="10.0" t="-5.0" zOffset="0.0" orientation="none" length="1.0" width="1.0" height="1.0">
+                <repeat s="10.0" length="20.0" distance="5.0" tStart="-5.0" tEnd="-5.0" heightStart="1.0" heightEnd="1.0" zOffsetStart="0.0" zOffsetEnd="0.0">
+                    <userData code="repeat"/>
+                </repeat>
+                <outlines>
+                    <outline id="0" fillType="grass" outer="true" closed="true">
+                        <userData code="outline"/>
+                        <cornerLocal u="0.0" v="0.0" z="0.0" height="1.0" id="0">
+                            <userData code="corner_local"/>
+                        </cornerLocal>
+                        <cornerLocal u="1.0" v="0.0" z="0.0" height="1.0" id="1"/>
+                        <cornerRoad s="11.0" t="-4.0" dz="0.0" height="1.0" id="2">
+                            <userData code="corner_road"/>
+                        </cornerRoad>
+                    </outline>
+                </outlines>
+                <material surface="concrete">
+                    <userData code="object_material"/>
+                </material>
+                <validity fromLane="-1" toLane="-1">
+                    <userData code="validity"/>
+                </validity>
+                <parkingSpace access="all" restrictions="">
+                    <userData code="parking_space"/>
+                </parkingSpace>
+                <markings>
+                    <marking side="front" color="white" width="0.1" zOffset="0.005" spaceLength="0.0" lineLength="1.0" startOffset="0.0" stopOffset="0.0">
+                        <userData code="marking"/>
+                        <cornerReference id="0"/>
+                    </marking>
+                </markings>
+                <borders>
+                    <border width="0.2" type="curb" outlineId="0">
+                        <userData code="border"/>
+                    </border>
+                </borders>
+            </object>
+            <objectReference s="30.0" t="0.0" id="o1" zOffset="0.0" validLength="0.0" orientation="none">
+                <userData code="object_reference"/>
+            </objectReference>
+            <tunnel s="40.0" length="10.0" id="t1" name="tunnel" type="standard">
+                <userData code="tunnel"/>
+            </tunnel>
+            <bridge s="60.0" length="10.0" id="b1" name="bridge" type="concrete">
+                <userData code="bridge"/>
+            </bridge>
+        </objects>
+        <signals>
+            <signal s="20.0" t="-5.0" id="s1" name="sign" dynamic="no" orientation="+" zOffset="2.0" country="DE" type="274" subtype="-1">
+                <dependency id="s2" type="supplementary">
+                    <userData code="dependency"/>
+                </dependency>
+                <reference elementType="object" elementId="o1" type="limit">
+                    <userData code="signal_element_reference"/>
+                </reference>
+                <positionRoad roadId="1" s="20.0" t="-5.0" zOffset="2.0" hOffset="0.0">
+                    <userData code="position_road"/>
+                </positionRoad>
+            </signal>
+            <signal s="20.0" t="-5.0" id="s2" name="sign2" dynamic="no" orientation="+" zOffset="1.5" country="DE" type="1048" subtype="-1">
+                <positionInertial x="20.0" y="-5.0" z="1.5" hdg="0.0">
+                    <userData code="position_inertial"/>
+                </positionInertial>
+            </signal>
+            <signalReference s="80.0" t="5.0" id="s1" orientation="-">
+                <userData code="signal_reference"/>
+            </signalReference>
+        </signals>
+        <surface>
+            <CRG file="road_1.crg" mode="attached" purpose="elevation">
+                <userData code="crg"/>
+            </CRG>
+        </surface>
+        <railroad>
+            <switch name="sw" id="sw1" position="dynamic">
+                <userData code="switch"/>
+                <mainTrack id="1" s="90.0" dir="+">
+                    <userData code="main_track"/>
+                </mainTrack>
+                <sideTrack id="1" s="0.0" dir="+"/>
+                <partner name="sw2" id="sw2">
+                    <userData code="partner"/>
+                </partner>
+            </switch>
+        </railroad>
+    </road>
+    <controller id="c1" name="controller">
+        <userData code="controller"/>
+        <control signalId="s1" type="0">
+            <userData code="control"/>
+        </control>
+    </controller>
+    <junction name="j" id="100">
+        <connection id="0" incomingRoad="1" connectingRoad="1" contactPoint="start">
+            <userData code="connection"/>
+            <laneLink from="-1" to="-1">
+                <userData code="lane_link"/>
+            </laneLink>
+        </connection>
+        <connection id="1" incomingRoad="1" type="virtual">
+            <predecessor elementType="road" elementId="1" elementS="10.0" elementDir="+">
+                <userData code="connection_predecessor"/>
+            </predecessor>
+        </connection>
+        <priority high="1" low="1">
+            <userData code="priority"/>
+        </priority>
+        <controller id="c1" type="0" sequence="1">
+            <userData code="junction_controller"/>
+        </controller>
+    </junction>
+    <junctionGroup name="g" id="g1" type="roundabout">
+        <userData code="junction_group"/>
+        <junctionReference junction="100">
+            <userData code="junction_reference"/>
+        </junctionReference>
+    </junctionGroup>
+    <station name="st" id="st1" type="small">
+        <userData code="station"/>
+        <platform name="p" id="p1">
+            <userData code="platform"/>
+            <segment roadId="1" sStart="0.0" sEnd="10.0" side="right">
+                <userData code="segment"/>
+            </segment>
+        </platform>
+    </station>
+</OpenDRIVE>

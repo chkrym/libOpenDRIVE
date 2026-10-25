@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include "Geometries/CubicSpline.h"
 #include "Utils.hpp"
 
@@ -40,6 +41,8 @@ struct RoadMarksLine
     std::string name = "";
     std::string rule = "";
     std::string color = ""; // OpenDRIVE 1.6.1, 9.6.1: line @color, falls back to the <roadMark> @color
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
@@ -106,6 +109,8 @@ struct RoadMarkGroup
 
     // OpenDRIVE 1.6.1, 9.6.3 <sway>: lateral offset of the road mark reference position from the lane border, absolute s
     CubicProfile sway;
+
+    AdditionalData additional_data;
 };
 
 struct RoadMark

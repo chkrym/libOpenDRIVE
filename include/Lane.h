@@ -22,6 +22,8 @@ struct HeightOffset
 
     double inner = 0;
     double outer = 0;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 9.5.4 Lane material
@@ -32,6 +34,8 @@ struct LaneMaterial
     std::string           surface = "";
     std::optional<double> friction;
     std::optional<double> roughness;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 9.5.5 Lane speed limit
@@ -41,6 +45,8 @@ struct LaneSpeed
 
     double      max = 0;
     std::string unit = "";
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 9.5.6 Lane access
@@ -50,6 +56,8 @@ struct LaneAccess
 
     std::string rule = "";        // "allow" or "deny"
     std::string restriction = ""; // e.g. "bus", "truck", "pedestrian"
+
+    AdditionalData additional_data;
 };
 
 struct LaneKey

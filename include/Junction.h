@@ -20,6 +20,8 @@ struct JunctionLaneLink
 
     int from = 0;
     int to = 0;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
@@ -49,6 +51,8 @@ struct JunctionConnectionLink
     std::optional<double>      element_s;     // s-coordinate where the connection meets the road
     std::optional<std::string> element_dir;   // "+" or "-", relative to the s-direction of the road
     std::optional<std::string> contact_point; // "start" or "end"
+
+    AdditionalData additional_data;
 };
 
 struct JunctionConnection
@@ -72,6 +76,8 @@ struct JunctionConnection
     std::optional<JunctionConnectionLink> successor;   // only for virtual connections
 
     std::set<JunctionLaneLink> lane_links;
+
+    AdditionalData additional_data;
 };
 
 struct JunctionPriority
@@ -80,6 +86,8 @@ struct JunctionPriority
 
     std::string high = "";
     std::string low = "";
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
@@ -106,6 +114,8 @@ struct JunctionController
     std::string   id = "";
     std::string   type = "";
     std::uint32_t sequence = 0;
+
+    AdditionalData additional_data;
 };
 
 class Junction
@@ -134,6 +144,8 @@ struct JunctionGroup
     std::string              id = "";
     std::string              type = ""; // "roundabout" or "unknown"
     std::vector<std::string> junction_ids;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr

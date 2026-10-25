@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include <climits>
 
 namespace odr
@@ -10,6 +11,8 @@ struct LaneValidityRecord
 
     int from_lane = INT_MIN;
     int to_lane = INT_MAX;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
