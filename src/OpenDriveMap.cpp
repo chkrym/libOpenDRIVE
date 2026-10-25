@@ -1674,7 +1674,10 @@ RoutingGraph OpenDriveMap::get_routing_graph() const
         {
             for (const auto& [_, lane] : lanesection.id_to_lane)
             {
-                const bool lane_follows_road_direction = lane.key.lane_id < 0;
+                // OpenDRIVE 1.6.1, 8 Roads: "The standard driving direction is defined by the value which is assigned to the @rule
+                // attribute (RHT=right-hand traffic, LHT=left-hand traffic)". With LHT the left lanes (positive ids) drive along the
+                // reference line.
+                const bool lane_follows_road_direction = road.left_hand_traffic ? lane.key.lane_id > 0 : lane.key.lane_id < 0;
 
                 for (const Lane* predecessor_lane : this->get_adjacent_lanes(lane, lane_follows_road_direction))
                 {

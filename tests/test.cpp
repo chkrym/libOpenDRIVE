@@ -154,6 +154,26 @@ TEST_CASE("Multiple lane predecessors and successors", "[xodr][lane_link]")
     REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 0.0, -1), odr::LaneKey("2", 0.0, -1)).size() == 3);
 }
 
+TEST_CASE("Left-hand traffic routing", "[xodr][routing][lht]")
+{
+    const odr::OpenDriveMap odr_map("traffic_rule.xodr");
+    REQUIRE(!odr_map.get_road("1").left_hand_traffic);
+    REQUIRE(odr_map.get_road("2").left_hand_traffic);
+
+    const odr::RoutingGraph routing_graph = odr_map.get_routing_graph();
+
+    // RHT: right lanes drive along the reference line, left lanes against it
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 0.0, -1), odr::LaneKey("1", 25.0, -1)).size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 25.0, 1), odr::LaneKey("1", 0.0, 1)).size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 0.0, 1), odr::LaneKey("1", 25.0, 1)).empty());
+
+    // LHT: left lanes drive along the reference line, right lanes against it
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("2", 0.0, 1), odr::LaneKey("2", 25.0, 1)).size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("2", 25.0, -1), odr::LaneKey("2", 0.0, -1)).size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("2", 0.0, -1), odr::LaneKey("2", 25.0, -1)).empty());
+    REQUIRE(routing_graph.get_lane_successors(odr::LaneKey("2", 0.0, 1)) == std::vector<odr::LaneKey>{odr::LaneKey("2", 25.0, 1)});
+}
+
 TEST_CASE("Poly3 geometry", "[xodr][poly3]")
 {
     odr::OpenDriveMap odr_map("poly3.xodr", false);
