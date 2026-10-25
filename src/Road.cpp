@@ -452,16 +452,56 @@ Mesh3D Road::get_roadmark_mesh(const Lane& lane, const RoadMark& roadmark, const
 
 Mesh3D Road::get_road_signal_mesh(const RoadSignal& road_signal) const
 {
-    const Mat3D  rot_mat = EulerAnglesToMatrix<double>(road_signal.roll, road_signal.pitch, road_signal.hOffset);
-    const double s = road_signal.s0;
-    const double t = road_signal.t0;
-    const double z = road_signal.zOffset;
-    const double height = road_signal.height;
-    const double width = road_signal.width;
-    Mesh3D       road_signal_mesh;
-    road_signal_mesh = road_signal.get_box(width, 0.2, height);
+    // OpenDRIVE 1.6.1, 12.4: the mesh is built at the physical position if one is given, the logical position otherwise
+    if (road_signal.position_inertial)
+    {
+        const RoadSignalPositionInertial& pos = *road_signal.position_inertial;
+        const Mat3D                       rot_mat = EulerAnglesToMatrix<double>(pos.roll, pos.pitch, pos.hdg);
+        Mesh3D                            road_signal_mesh = road_signal.get_box(road_signal.width, 0.2, road_signal.height);
+        for (Vec3D& pt_uvz : road_signal_mesh.vertices)
+        {
+            pt_uvz = add(MatVecMultiplication(rot_mat, pt_uvz), Vec3D{pos.x, pos.y, pos.z});
+            road_signal_mesh.st_coordinates.push_back({road_signal.s0, road_signal.t0});
+        }
+        return road_signal_mesh;
+    }
+
+    if (road_signal.position_road && (road_signal.position_road->road_id.empty() || road_signal.position_road->road_id == this->id))
+    {
+        const RoadSignalPositionRoad& pos = *road_signal.position_road;
+        Mesh3D road_signal_mesh = this->get_road_signal_mesh(road_signal, pos.s, pos.t, pos.z_offset, pos.h_offset, pos.pitch, pos.roll);
+        for (Vec2D& st : road_signal_mesh.st_coordinates)
+            st = {road_signal.s0, road_signal.t0};
+        return road_signal_mesh;
+    }
+
+    return this->get_road_signal_mesh(
+        road_signal, road_signal.s0, road_signal.t0, road_signal.zOffset, road_signal.hOffset, road_signal.pitch, road_signal.roll);
+}
+
+Mesh3D Road::get_road_signal_mesh(const RoadSignal& road_signal,
+                                  double            s,
+                                  const double      t,
+                                  const double      z_offset,
+                                  const double      h_offset,
+                                  const double      pitch,
+                                  const double      roll) const
+{
+    odr::check_and_repair(
+        s >= 0, [&]() { s = 0; }, "Road #%s Signal #%s: s < 0 invalid (s=%f), using s=0", this->id.c_str(), road_signal.id.c_str(), s);
+    odr::check_and_repair(
+        s <= this->length,
+        [&]() { s = this->length; },
+        "Road #%s Signal #%s: s > length invalid (s=%f, length=%f), using s=length",
+        this->id.c_str(),
+        road_signal.id.c_str(),
+        s,
+        this->length);
+
+    const Mat3D rot_mat = EulerAnglesToMatrix<double>(roll, pitch, h_offset);
+    Mesh3D      road_signal_mesh = road_signal.get_box(road_signal.width, 0.2, road_signal.height);
     Vec3D       e_s, e_t, e_h;
-    const Vec3D p0 = this->get_xyz(s, t, z, &e_s, &e_t, &e_h);
+    const Vec3D p0 = this->get_xyz(s, t, z_offset, &e_s, &e_t, &e_h);
     const Mat3D base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
     for (Vec3D& pt_uvz : road_signal_mesh.vertices)
     {

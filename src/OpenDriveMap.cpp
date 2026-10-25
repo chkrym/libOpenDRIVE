@@ -1445,8 +1445,9 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                            road_signal_id.c_str());
                 if (position_inertial_node)
                 {
-                    road_signal.position_inertial = RoadSignalPositionInertial(position_inertial_node.attribute("x").as_double(0.0),
-                                                                               position_inertial_node.attribute("y").as_double(0.0),
+                    // shifted like the geometry when the map is centered, so the mesh lines up with the road
+                    road_signal.position_inertial = RoadSignalPositionInertial(position_inertial_node.attribute("x").as_double(0.0) - this->x_offs,
+                                                                               position_inertial_node.attribute("y").as_double(0.0) - this->y_offs,
                                                                                position_inertial_node.attribute("z").as_double(0.0),
                                                                                position_inertial_node.attribute("hdg").as_double(0.0),
                                                                                position_inertial_node.attribute("pitch").as_double(0.0),
@@ -1603,6 +1604,31 @@ std::vector<const Lane*> OpenDriveMap::get_adjacent_lanes(const Lane& lane, cons
     return adjacent_lanes;
 }
 
+Mesh3D OpenDriveMap::get_road_signal_mesh(const RoadSignal& road_signal) const
+{
+    const Road& road = this->id_to_road.at(road_signal.road_id);
+    if (!road_signal.position_inertial && road_signal.position_road && !road_signal.position_road->road_id.empty() &&
+        road_signal.position_road->road_id != road.id)
+    {
+        // OpenDRIVE 1.6.1, 12.4: positionRoad may refer to another road
+        const RoadSignalPositionRoad& pos = *road_signal.position_road;
+        const auto                    pos_road_iter = this->id_to_road.find(pos.road_id);
+        if (pos_road_iter != this->id_to_road.end())
+        {
+            Mesh3D road_signal_mesh =
+                pos_road_iter->second.get_road_signal_mesh(road_signal, pos.s, pos.t, pos.z_offset, pos.h_offset, pos.pitch, pos.roll);
+            for (Vec2D& st : road_signal_mesh.st_coordinates)
+                st = {road_signal.s0, road_signal.t0};
+            return road_signal_mesh;
+        }
+        log::warn("Road #%s Signal #%s: positionRoad road #%s not found, using logical position",
+                  road.id.c_str(),
+                  road_signal.id.c_str(),
+                  pos.road_id.c_str());
+    }
+    return road.get_road_signal_mesh(road_signal);
+}
+
 RoadNetworkMesh OpenDriveMap::get_road_network_mesh(const double eps) const
 {
     RoadNetworkMesh  out_mesh;
@@ -1656,7 +1682,7 @@ RoadNetworkMesh OpenDriveMap::get_road_network_mesh(const double eps) const
             const RoadSignal& road_signal = id_signal.second;
             const std::size_t signals_idx_offset = road_signals_mesh.vertices.size();
             road_signals_mesh.road_signal_start_indices[signals_idx_offset] = road_signal.id;
-            road_signals_mesh.add_mesh(road.get_road_signal_mesh(road_signal));
+            road_signals_mesh.add_mesh(this->get_road_signal_mesh(road_signal));
         }
     }
 
