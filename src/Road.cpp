@@ -498,11 +498,13 @@ Mesh3D Road::get_road_signal_mesh(const RoadSignal& road_signal,
         s,
         this->length);
 
-    const Mat3D rot_mat = EulerAnglesToMatrix<double>(roll, pitch, h_offset);
-    Mesh3D      road_signal_mesh = road_signal.get_box(road_signal.width, 0.2, road_signal.height);
-    Vec3D       e_s, e_t, e_h;
-    const Vec3D p0 = this->get_xyz(s, t, z_offset, &e_s, &e_t, &e_h);
-    const Mat3D base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
+    // OpenDRIVE 1.6.1, 12: @hOffset is relative to the driving direction the signal faces, which is reversed for "-"
+    const double hdg = (road_signal.orientation == "-") ? h_offset + M_PI : h_offset;
+    const Mat3D  rot_mat = EulerAnglesToMatrix<double>(roll, pitch, hdg);
+    Mesh3D       road_signal_mesh = road_signal.get_box(road_signal.width, 0.2, road_signal.height);
+    Vec3D        e_s, e_t, e_h;
+    const Vec3D  p0 = this->get_xyz(s, t, z_offset, &e_s, &e_t, &e_h);
+    const Mat3D  base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
     for (Vec3D& pt_uvz : road_signal_mesh.vertices)
     {
         pt_uvz = MatVecMultiplication(rot_mat, pt_uvz);

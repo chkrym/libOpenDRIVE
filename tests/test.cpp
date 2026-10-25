@@ -843,3 +843,27 @@ TEST_CASE("Signal mesh at physical position", "[xodr][signals]")
         REQUIRE(odr_map.get_road_network_mesh(0.1).road_signals_mesh.vertices.size() == 5 * 8);
     }
 }
+
+TEST_CASE("Signal mesh orientation", "[xodr][signals]")
+{
+    const odr::OpenDriveMap odr_map("signal_orientation.xodr");
+    const odr::Road         road = odr_map.get_road("1");
+
+    // the box is tilted by @pitch around its facing axis, so the top leans along +s for "+" and along -s for "-"
+    const auto get_lean_s = [&](const std::string& signal_id, const double s_base)
+    {
+        const odr::Mesh3D mesh = odr_map.get_road_signal_mesh(road.id_to_signal.at(signal_id));
+        REQUIRE(mesh.vertices.size() == 8);
+        odr::Vec3D center{0, 0, 0};
+        for (const odr::Vec3D& pt : mesh.vertices)
+            center = odr::add(center, pt);
+        center = odr::mut(1.0 / mesh.vertices.size(), center);
+        return center[0] - road.get_xyz(s_base, 0.0, 0.0)[0];
+    };
+
+    const double lean = 0.5 * std::sin(0.3);
+    REQUIRE(get_lean_s("plus", 20.0) == Catch::Approx(lean));
+    REQUIRE(get_lean_s("minus", 40.0) == Catch::Approx(-lean));
+    REQUIRE(get_lean_s("minus_road", 80.0) == Catch::Approx(-lean)); // positionRoad @hOffset is relative to @orientation too
+    REQUIRE(get_lean_s("none", 70.0) == Catch::Approx(lean));        // "none": relative to the reference line
+}
