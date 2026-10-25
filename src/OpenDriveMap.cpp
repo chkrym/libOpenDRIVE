@@ -18,12 +18,17 @@
 #include "RoadSignal.h"
 #include "Utils.hpp"
 
+#ifdef OPENDRIVE_WITH_ZLIB
+    #include <zlib.h>
+#endif
+
 #include <algorithm>
 #include <cctype>
 #include <climits>
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -180,6 +185,82 @@ double get_poly3_u_end(const double b, const double c, const double d, const dou
     return 0.5 * (u_lo + u_hi);
 }
 
+#ifdef OPENDRIVE_WITH_ZLIB
+// decompress gzip data, concatenated gzip members are supported
+bool gunzip(const std::string& compressed, std::string& decompressed)
+{
+    if (compressed.size() > UINT_MAX)
+        return false;
+
+    z_stream stream{};
+    if (inflateInit2(&stream, 16 + MAX_WBITS) != Z_OK) // +16: expect a gzip header
+        return false;
+    stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(compressed.data()));
+    stream.avail_in = static_cast<uInt>(compressed.size());
+
+    char buffer[1 << 16];
+    int  ret = Z_OK;
+    do
+    {
+        stream.next_out = reinterpret_cast<Bytef*>(buffer);
+        stream.avail_out = sizeof(buffer);
+        ret = inflate(&stream, Z_NO_FLUSH);
+        if (ret != Z_OK && ret != Z_STREAM_END)
+        {
+            inflateEnd(&stream);
+            return false;
+        }
+        decompressed.append(buffer, sizeof(buffer) - stream.avail_out);
+        if (ret == Z_STREAM_END && stream.avail_in > 0)
+            inflateReset(&stream);
+    } while (ret != Z_STREAM_END || stream.avail_in > 0);
+
+    inflateEnd(&stream);
+    return true;
+}
+#endif
+
+// OpenDRIVE 1.6.1, 4.1: load an .xodr file, or a gzip-compressed .xodrz file (detected by the gzip magic bytes)
+pugi::xml_parse_result load_xml_file(pugi::xml_document& xml_doc, const std::filesystem::path& file_path)
+{
+    pugi::xml_parse_result xml_parse_result;
+
+    std::ifstream file_stream(file_path, std::ios::binary);
+    if (!file_stream)
+    {
+        xml_parse_result.status = pugi::status_file_not_found;
+        return xml_parse_result;
+    }
+    std::string file_content((std::istreambuf_iterator<char>(file_stream)), std::istreambuf_iterator<char>());
+    if (file_stream.bad())
+    {
+        xml_parse_result.status = pugi::status_io_error;
+        return xml_parse_result;
+    }
+
+    const bool is_gzip =
+        file_content.size() >= 2 && static_cast<unsigned char>(file_content[0]) == 0x1f && static_cast<unsigned char>(file_content[1]) == 0x8b;
+    if (is_gzip)
+    {
+#ifdef OPENDRIVE_WITH_ZLIB
+        std::string decompressed;
+        if (!gunzip(file_content, decompressed))
+        {
+            log::error("Could not decompress '%s'", file_path.u8string().c_str());
+            xml_parse_result.status = pugi::status_io_error;
+            return xml_parse_result;
+        }
+        file_content = std::move(decompressed);
+#else
+        log::error("'%s' is gzip-compressed, but libOpenDRIVE was built without zlib (OPENDRIVE_WITH_ZLIB)", file_path.u8string().c_str());
+        xml_parse_result.status = pugi::status_io_error;
+        return xml_parse_result;
+#endif
+    }
+
+    return xml_doc.load_buffer(file_content.data(), file_content.size());
+}
+
 // collect the <include> elements below xml_node, skipping the free-form content of <userData>
 void collect_include_nodes(const pugi::xml_node& xml_node, std::vector<pugi::xml_node>& include_nodes)
 {
@@ -221,7 +302,7 @@ void resolve_includes(pugi::xml_document& xml_doc, const std::filesystem::path& 
         }
 
         pugi::xml_document           include_doc;
-        const pugi::xml_parse_result include_parse_result = include_doc.load_file(include_path.c_str());
+        const pugi::xml_parse_result include_parse_result = load_xml_file(include_doc, include_path);
         if (!include_parse_result)
         {
             log::warn(
@@ -258,7 +339,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
     xodr_file(xodr_file)
 {
     pugi::xml_document           xml_doc;
-    const pugi::xml_parse_result xml_parse_result = xml_doc.load_file(xodr_file.c_str());
+    const pugi::xml_parse_result xml_parse_result = load_xml_file(xml_doc, std::filesystem::u8path(xodr_file));
     if (!xml_parse_result)
         log::error("Error parsing xml: %s", xml_parse_result.description());
 
