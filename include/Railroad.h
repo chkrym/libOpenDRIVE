@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include <optional>
 #include <string>
 #include <vector>
@@ -15,6 +16,8 @@ struct RailroadSwitchTrack
     std::string id = ""; // id of the track (road)
     double      s = 0;
     std::string dir = "+"; // "+" or "-"
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 13.2 Switches: <partner>
@@ -24,6 +27,8 @@ struct RailroadSwitchPartner
 
     std::string id = "";
     std::string name = "";
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 13.2 Switches, defined within <road><railroad>
@@ -39,6 +44,8 @@ struct RailroadSwitch
     RailroadSwitchTrack                  main_track;
     RailroadSwitchTrack                  side_track;
     std::optional<RailroadSwitchPartner> partner;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 13.3 Stations: <segment>
@@ -50,6 +57,8 @@ struct StationPlatformSegment
     double      s_start = 0;
     double      s_end = 0;
     std::string side = ""; // "left" or "right"
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 13.3 Stations: <platform>
@@ -61,6 +70,8 @@ struct StationPlatform
     std::string name = "";
 
     std::vector<StationPlatformSegment> segments;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 13.3 Stations, defined directly within <OpenDRIVE>
@@ -73,6 +84,8 @@ struct Station
     std::string type = ""; // "small", "medium" or "large", optional
 
     std::vector<StationPlatform> platforms;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr

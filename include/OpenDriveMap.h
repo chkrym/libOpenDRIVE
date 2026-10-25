@@ -48,6 +48,9 @@ public:
     RoadNetworkMesh get_road_network_mesh(const double eps) const;
     RoutingGraph    get_routing_graph() const;
 
+    // additional data of the element at path, e.g. "/OpenDRIVE/road[2]/elevationProfile[1]/elevation[1]", empty if there is none
+    AdditionalData get_additional_data(const std::string& path) const;
+
     Header            header;
     AdditionalData    additional_data; // <userData>, <include> and <dataQuality> directly within <OpenDRIVE>
     std::string       proj4 = "";
@@ -60,6 +63,11 @@ public:
     std::map<std::string, JunctionGroup> id_to_junction_group;
     std::map<std::string, Controller>    id_to_controller;
     std::map<std::string, Station>       id_to_station; // OpenDRIVE 1.6.1, 13.3
+
+    // OpenDRIVE 1.6.1, 5: additional data of every element that has any, keyed by element path. The root is "/OpenDRIVE", each
+    // child step is "/<name>[<n>]" with n the 1-based index among the siblings of the same name, e.g. "/OpenDRIVE/road[1]/planView[1]/geometry[3]".
+    // Also covers elements whose data is merged into other structures (polynomials, records), e.g. <elevation>, <width> or <laneOffset>.
+    std::map<std::string, AdditionalData> path_to_additional_data;
 };
 
 } // namespace odr

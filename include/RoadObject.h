@@ -45,6 +45,8 @@ struct RoadObjectRepeat
     double length_end = NAN;
     double radius_start = NAN;
     double radius_end = NAN;
+
+    AdditionalData additional_data;
 };
 
 struct RoadObjectCorner
@@ -62,6 +64,8 @@ struct RoadObjectCorner
     Vec3D  pt;
     double height = 0;
     Type   type = Type::Road;
+
+    AdditionalData additional_data;
 };
 
 struct RoadObjectOutline
@@ -75,6 +79,8 @@ struct RoadObjectOutline
     bool        closed = true;
 
     std::vector<RoadObjectCorner> outline;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.3 Object material
@@ -85,6 +91,8 @@ struct RoadObjectMaterial
     std::string           surface = "";
     std::optional<double> friction;
     std::optional<double> roughness;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.5 Access rules to parking spaces
@@ -94,6 +102,8 @@ struct RoadObjectParkingSpace
 
     std::string access = "";       // e.g. "all", "car", "handicapped", "bus"
     std::string restrictions = ""; // free text
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.6 Object marking
@@ -120,6 +130,8 @@ struct RoadObjectMarking
     double      stop_offset = 0;
 
     std::vector<int> corner_references; // ids of outline points
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.7 Object borders
@@ -133,6 +145,8 @@ struct RoadObjectBorder
     bool        use_complete_outline = true;
 
     std::vector<int> corner_references; // ids of outline points, if not use_complete_outline
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.8 Object reference
@@ -149,6 +163,8 @@ struct RoadObjectReference
     std::string orientation = "";
 
     std::vector<LaneValidityRecord> lane_validities;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.9 Tunnels
@@ -166,6 +182,8 @@ struct RoadTunnel
     std::optional<double> daylight;  // [0;1]
 
     std::vector<LaneValidityRecord> lane_validities;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 11.10 Bridges
@@ -181,6 +199,8 @@ struct RoadBridge
     std::string type = ""; // "concrete", "steel", "brick" or "wood"
 
     std::vector<LaneValidityRecord> lane_validities;
+
+    AdditionalData additional_data;
 };
 
 struct RoadObject

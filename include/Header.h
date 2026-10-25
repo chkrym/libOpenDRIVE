@@ -16,6 +16,8 @@ struct HeaderOffset
     double y = 0;
     double z = 0;
     double hdg = 0;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 4.3.2 Header

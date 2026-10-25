@@ -18,6 +18,8 @@ struct RoadSignalDependency
 
     std::string id = "";
     std::string type = ""; // free text
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 12.3 Links between signals and objects (<reference> within <signal>)
@@ -28,6 +30,8 @@ struct RoadSignalElementReference
     std::string element_type = ""; // "object" or "signal"
     std::string element_id = "";
     std::string type = ""; // free text
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 12.4 Signal positioning: physical position in inertial coordinates (x/y shifted by the map offset when centered)
@@ -41,6 +45,8 @@ struct RoadSignalPositionInertial
     double hdg = 0;
     double pitch = 0;
     double roll = 0;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 12.4 Signal positioning: physical position in road coordinates
@@ -55,6 +61,8 @@ struct RoadSignalPositionRoad
     double      h_offset = 0;
     double      pitch = 0;
     double      roll = 0;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 12.5 Reuse of signal information (<signalReference> within <signals>)
@@ -69,6 +77,8 @@ struct RoadSignalReference
     std::string orientation = "";
 
     std::vector<LaneValidityRecord> lane_validities;
+
+    AdditionalData additional_data;
 };
 
 // OpenDRIVE 1.6.1, 12.6 Controllers
@@ -78,6 +88,8 @@ struct ControllerControl
 
     std::string signal_id = "";
     std::string type = ""; // free text
+
+    AdditionalData additional_data;
 };
 
 struct Controller
@@ -89,6 +101,8 @@ struct Controller
     std::optional<std::uint32_t> sequence;
 
     std::vector<ControllerControl> controls;
+
+    AdditionalData additional_data;
 };
 
 struct RoadSignal

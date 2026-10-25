@@ -54,32 +54,11 @@ const LaneSection* get_lanesection_at(const Road& road, const double s)
     return &(s_lanesec_iter->second);
 }
 
-std::vector<LaneValidityRecord> extract_lane_validity_records(const pugi::xml_node& xml_node)
+// OpenDRIVE 1.6.1, 5 Additional Data: <userData>, <include> and <dataQuality> elements
+bool is_additional_data_node(const pugi::xml_node& xml_node)
 {
-    std::vector<LaneValidityRecord> lane_validities;
-    for (const auto& validity_node : xml_node.children("validity"))
-    {
-        LaneValidityRecord lane_validity{validity_node.attribute("fromLane").as_int(INT_MIN), validity_node.attribute("toLane").as_int(INT_MAX)};
-
-        // fromLane should not be greater than toLane, since the standard defines them as follows:
-        // fromLane - the minimum ID of lanes for which the object is valid
-        // toLane - the maximum ID of lanes for which the object is valid
-        // If we find such a violation, we set both IDs to 0 which means the
-        // object is only applicable to the centerlane.
-        odr::check_and_repair(
-            lane_validity.from_lane <= lane_validity.to_lane,
-            [&]()
-            {
-                lane_validity.from_lane = 0;
-                lane_validity.to_lane = 0;
-            },
-            "Lane::validity::fromLane %d > Lane::validity::toLane %d, set to 0",
-            lane_validity.from_lane,
-            lane_validity.to_lane);
-
-        lane_validities.push_back(std::move(lane_validity));
-    }
-    return lane_validities;
+    const std::string name = xml_node.name();
+    return name == "userData" || name == "include" || name == "dataQuality";
 }
 
 // OpenDRIVE 1.6.1, 5 Additional Data: direct <userData>, <include> and <dataQuality> children of xml_node
@@ -125,6 +104,55 @@ AdditionalData extract_additional_data(const pugi::xml_node& xml_node)
     return additional_data;
 }
 
+// OpenDRIVE 1.6.1, 5: every element may carry additional data, collect it for the whole tree keyed by element path
+void collect_additional_data(const pugi::xml_node& xml_node, const std::string& path, std::map<std::string, AdditionalData>& path_to_additional_data)
+{
+    AdditionalData additional_data = extract_additional_data(xml_node);
+    if (!additional_data.empty())
+        path_to_additional_data.insert_or_assign(path, std::move(additional_data));
+
+    std::map<std::string, std::size_t> name_to_count;
+    for (const pugi::xml_node child_node : xml_node.children())
+    {
+        if (child_node.type() != pugi::node_element)
+            continue;
+        if (is_additional_data_node(child_node))
+            continue;
+        const std::string name = child_node.name();
+        const std::size_t idx = ++name_to_count[name];
+        collect_additional_data(child_node, path + "/" + name + "[" + std::to_string(idx) + "]", path_to_additional_data);
+    }
+}
+
+std::vector<LaneValidityRecord> extract_lane_validity_records(const pugi::xml_node& xml_node)
+{
+    std::vector<LaneValidityRecord> lane_validities;
+    for (const auto& validity_node : xml_node.children("validity"))
+    {
+        LaneValidityRecord lane_validity{validity_node.attribute("fromLane").as_int(INT_MIN), validity_node.attribute("toLane").as_int(INT_MAX)};
+
+        // fromLane should not be greater than toLane, since the standard defines them as follows:
+        // fromLane - the minimum ID of lanes for which the object is valid
+        // toLane - the maximum ID of lanes for which the object is valid
+        // If we find such a violation, we set both IDs to 0 which means the
+        // object is only applicable to the centerlane.
+        odr::check_and_repair(
+            lane_validity.from_lane <= lane_validity.to_lane,
+            [&]()
+            {
+                lane_validity.from_lane = 0;
+                lane_validity.to_lane = 0;
+            },
+            "Lane::validity::fromLane %d > Lane::validity::toLane %d, set to 0",
+            lane_validity.from_lane,
+            lane_validity.to_lane);
+
+        lane_validity.additional_data = extract_additional_data(validity_node);
+        lane_validities.push_back(std::move(lane_validity));
+    }
+    return lane_validities;
+}
+
 // OpenDRIVE 1.6.1, 13.2: <mainTrack> / <sideTrack> of a railroad switch
 RailroadSwitchTrack extract_switch_track(const pugi::xml_node& track_node)
 {
@@ -132,7 +160,9 @@ RailroadSwitchTrack extract_switch_track(const pugi::xml_node& track_node)
     pugi::xml_attribute dir_attr = track_node.attribute("dir");
     if (!dir_attr)
         dir_attr = track_node.attribute("position");
-    return RailroadSwitchTrack(track_node.attribute("id").as_string(""), track_node.attribute("s").as_double(0.0), dir_attr.as_string("+"));
+    RailroadSwitchTrack track(track_node.attribute("id").as_string(""), track_node.attribute("s").as_double(0.0), dir_attr.as_string("+"));
+    track.additional_data = extract_additional_data(track_node);
+    return track;
 }
 
 // OpenDRIVE 1.6.1, 8.5 / 10.3: <CRG> elements of a <surface> element of a road or junction
@@ -154,6 +184,7 @@ std::vector<SurfaceCRG> extract_surface_crgs(const pugi::xml_node& surface_node)
         surface_crg.z_offset = crg_node.attribute("zOffset").as_double(0.0);
         surface_crg.z_scale = crg_node.attribute("zScale").as_double(1.0);
         surface_crg.h_offset = crg_node.attribute("hOffset").as_double(0.0);
+        surface_crg.additional_data = extract_additional_data(crg_node);
         surface_crgs.push_back(surface_crg);
     }
     return surface_crgs;
@@ -385,6 +416,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                            offset_node.attribute("y").as_double(0.0),
                                            offset_node.attribute("z").as_double(0.0),
                                            offset_node.attribute("hdg").as_double(0.0));
+        this->header.offset->additional_data = extract_additional_data(offset_node);
     }
 
     if (const auto geoReference_node = header_node.child("geoReference"))
@@ -392,6 +424,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
     this->header.additional_data = extract_additional_data(header_node);
     this->additional_data = extract_additional_data(odr_node);
+    collect_additional_data(odr_node, "/OpenDRIVE", this->path_to_additional_data);
 
     std::size_t cnt = 1;
     if (center_map)
@@ -449,6 +482,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                                       junction_conn_contact_point)})
                                                           .first->second;
             junction_connection.type = connection_type;
+            junction_connection.additional_data = extract_additional_data(connection_node);
 
             for (const bool is_predecessor : {true, false})
             {
@@ -463,6 +497,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                     link.element_dir = attr.as_string();
                 if (const pugi::xml_attribute attr = link_node.attribute("contactPoint"))
                     link.contact_point = attr.as_string();
+                link.additional_data = extract_additional_data(link_node);
 
                 if (is_predecessor)
                     junction_connection.predecessor = link;
@@ -472,7 +507,8 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
             for (const pugi::xml_node lane_link_node : connection_node.children("laneLink"))
             {
-                const JunctionLaneLink lane_link(lane_link_node.attribute("from").as_int(0), lane_link_node.attribute("to").as_int(0));
+                JunctionLaneLink lane_link(lane_link_node.attribute("from").as_int(0), lane_link_node.attribute("to").as_int(0));
+                lane_link.additional_data = extract_additional_data(lane_link_node);
                 junction_connection.lane_links.insert(lane_link);
             }
         }
@@ -484,17 +520,18 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
         for (const pugi::xml_node priority_node : junction_node.children("priority"))
         {
-            const JunctionPriority junction_priority(priority_node.attribute("high").as_string(""), priority_node.attribute("low").as_string(""));
+            JunctionPriority junction_priority(priority_node.attribute("high").as_string(""), priority_node.attribute("low").as_string(""));
+            junction_priority.additional_data = extract_additional_data(priority_node);
             junction.priorities.insert(junction_priority);
         }
 
         for (const pugi::xml_node controller_node : junction_node.children("controller"))
         {
-            const std::string junction_controller_id = controller_node.attribute("id").as_string("");
-            junction.id_to_controller.insert({junction_controller_id,
-                                              JunctionController(junction_controller_id,
-                                                                 controller_node.attribute("type").as_string(""),
-                                                                 controller_node.attribute("sequence").as_uint(0))});
+            const std::string  junction_controller_id = controller_node.attribute("id").as_string("");
+            JunctionController junction_controller(
+                junction_controller_id, controller_node.attribute("type").as_string(""), controller_node.attribute("sequence").as_uint(0));
+            junction_controller.additional_data = extract_additional_data(controller_node);
+            junction.id_to_controller.insert({junction_controller_id, junction_controller});
         }
     }
 
@@ -507,6 +544,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                    junction_group_id,
                                                                    junction_group_node.attribute("type").as_string("unknown"))})
                                             .first->second;
+        junction_group.additional_data = extract_additional_data(junction_group_node);
 
         for (const pugi::xml_node junction_reference_node : junction_group_node.children("junctionReference"))
         {
@@ -529,9 +567,12 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
         Controller& controller =
             this->id_to_controller.insert({controller_id, Controller(controller_id, controller_node.attribute("name").as_string(""), sequence)})
                 .first->second;
+        controller.additional_data = extract_additional_data(controller_node);
         for (const pugi::xml_node control_node : controller_node.children("control"))
         {
-            controller.controls.emplace_back(control_node.attribute("signalId").as_string(""), control_node.attribute("type").as_string(""));
+            ControllerControl control(control_node.attribute("signalId").as_string(""), control_node.attribute("type").as_string(""));
+            control.additional_data = extract_additional_data(control_node);
+            controller.controls.push_back(control);
         }
     }
 
@@ -542,15 +583,19 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             this->id_to_station
                 .insert({station_id, Station(station_id, station_node.attribute("name").as_string(""), station_node.attribute("type").as_string(""))})
                 .first->second;
+        station.additional_data = extract_additional_data(station_node);
         for (const pugi::xml_node platform_node : station_node.children("platform"))
         {
             StationPlatform platform(platform_node.attribute("id").as_string(""), platform_node.attribute("name").as_string(""));
+            platform.additional_data = extract_additional_data(platform_node);
             for (const pugi::xml_node segment_node : platform_node.children("segment"))
             {
-                platform.segments.emplace_back(segment_node.attribute("roadId").as_string(""),
+                StationPlatformSegment segment(segment_node.attribute("roadId").as_string(""),
                                                segment_node.attribute("sStart").as_double(0.0),
                                                segment_node.attribute("sEnd").as_double(0.0),
                                                segment_node.attribute("side").as_string(""));
+                segment.additional_data = extract_additional_data(segment_node);
+                platform.segments.push_back(segment);
             }
             station.platforms.push_back(platform);
         }
@@ -593,7 +638,11 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             railroad_switch.main_track = extract_switch_track(switch_node.child("mainTrack"));
             railroad_switch.side_track = extract_switch_track(switch_node.child("sideTrack"));
             if (const pugi::xml_node partner_node = switch_node.child("partner"))
+            {
                 railroad_switch.partner.emplace(partner_node.attribute("id").as_string(""), partner_node.attribute("name").as_string(""));
+                railroad_switch.partner->additional_data = extract_additional_data(partner_node);
+            }
+            railroad_switch.additional_data = extract_additional_data(switch_node);
             road.id_to_switch.insert({switch_id, railroad_switch});
         }
 
@@ -608,6 +657,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             {
                 RoadLink& link = is_predecessor ? road.predecessor : road.successor;
                 link.id = road_link_node.attribute("elementId").as_string("");
+                link.additional_data = extract_additional_data(road_link_node);
 
                 std::string type_str = road_link_node.attribute("elementType").as_string("");
                 odr::check_and_repair(
@@ -671,6 +721,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 const std::string speed_record_max = node.attribute("max").as_string("");
                 const std::string speed_record_unit = node.attribute("unit").as_string("m/s");
                 SpeedRecord       speed_record(speed_record_max, speed_record_unit);
+                speed_record.additional_data = extract_additional_data(node);
                 road.s_to_speed.insert({s, speed_record});
             }
         }
@@ -689,8 +740,11 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
             odr::check_and_repair(
                 length >= 0, [&]() { length = 0; }, "Road #%s: planView::geometry::length %f < 0, set length=0", road_id.c_str(), length);
 
-            const pugi::xml_node geometry_node = geometry_hdr_node.first_child();
-            const std::string    geometry_type = geometry_node.name();
+            // the geometry shape is the first child that is not additional data (OpenDRIVE 1.6.1, 5), e.g. <geometry><userData/><line/>
+            pugi::xml_node geometry_node = geometry_hdr_node.first_child();
+            while (geometry_node && (geometry_node.type() != pugi::node_element || is_additional_data_node(geometry_node)))
+                geometry_node = geometry_node.next_sibling();
+            const std::string geometry_type = geometry_node.name();
             if (geometry_type == "line")
             {
                 road.ref_line.s0_to_geometry[s0] = std::make_unique<Line>(s0, x0, y0, hdg0, length);
@@ -780,6 +834,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 log::error("Could not parse %s", geometry_type.c_str());
                 continue;
             }
+            road.ref_line.s0_to_geometry.at(s0)->additional_data = extract_additional_data(geometry_hdr_node);
         }
 
         std::map<std::string /*x path query*/, CubicProfile&> cubic_profile_fields{
@@ -948,24 +1003,25 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
                 for (const pugi::xml_node material_node : lane_node.children("material"))
                 {
-                    lane.s_to_material.insert_or_assign(get_record_s0(material_node, "material"),
-                                                        LaneMaterial(material_node.attribute("surface").as_string(""),
-                                                                     get_optional_double(material_node, "friction"),
-                                                                     get_optional_double(material_node, "roughness")));
+                    LaneMaterial material(material_node.attribute("surface").as_string(""),
+                                          get_optional_double(material_node, "friction"),
+                                          get_optional_double(material_node, "roughness"));
+                    material.additional_data = extract_additional_data(material_node);
+                    lane.s_to_material.insert_or_assign(get_record_s0(material_node, "material"), material);
                 }
 
                 for (const pugi::xml_node speed_node : lane_node.children("speed"))
                 {
-                    lane.s_to_speed.insert_or_assign(
-                        get_record_s0(speed_node, "speed"),
-                        LaneSpeed(speed_node.attribute("max").as_double(0.0), speed_node.attribute("unit").as_string("m/s")));
+                    LaneSpeed speed(speed_node.attribute("max").as_double(0.0), speed_node.attribute("unit").as_string("m/s"));
+                    speed.additional_data = extract_additional_data(speed_node);
+                    lane.s_to_speed.insert_or_assign(get_record_s0(speed_node, "speed"), speed);
                 }
 
                 for (const pugi::xml_node access_node : lane_node.children("access"))
                 {
-                    lane.s_to_access.emplace(
-                        get_record_s0(access_node, "access"),
-                        LaneAccess(access_node.attribute("rule").as_string(""), access_node.attribute("restriction").as_string("")));
+                    LaneAccess access(access_node.attribute("rule").as_string(""), access_node.attribute("restriction").as_string(""));
+                    access.additional_data = extract_additional_data(access_node);
+                    lane.s_to_access.emplace(get_record_s0(access_node, "access"), access);
                 }
 
                 for (const pugi::xml_node rule_node : lane_node.children("rule"))
@@ -1007,7 +1063,9 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                             s0,
                             lane_id,
                             s_offset);
-                        lane.s_to_height_offset.insert({s0 + s_offset, HeightOffset(inner, outer)});
+                        HeightOffset height_offset(inner, outer);
+                        height_offset.additional_data = extract_additional_data(lane_height_node);
+                        lane.s_to_height_offset.insert({s0 + s_offset, height_offset});
                     }
                 }
 
@@ -1024,6 +1082,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                  roadmark_node.attribute("color").as_string("standard"),
                                                  roadmark_node.attribute("material").as_string("standard"),
                                                  roadmark_node.attribute("laneChange").as_string("both"));
+                    roadmark_group.additional_data = extract_additional_data(roadmark_node);
 
                     odr::check_and_repair(
                         roadmark_group.s_offset >= 0,
@@ -1057,6 +1116,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                          name,
                                                          roadmarks_line_node.attribute("rule").as_string("none"),
                                                          roadmarks_line_node.attribute("color").as_string(roadmark_group.color.c_str()));
+                            roadmarks_line.additional_data = extract_additional_data(roadmarks_line_node);
 
                             for (auto [val_name, val_ptr] : {std::pair{"length", &(roadmarks_line.length)},
                                                              std::pair{"space", &(roadmarks_line.space)},
@@ -1094,6 +1154,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                          "",
                                                          roadmarks_line_node.attribute("rule").as_string("none"),
                                                          roadmark_group.color);
+                            roadmarks_line.additional_data = extract_additional_data(roadmarks_line_node);
 
                             for (auto [val_name, val_ptr] :
                                  {std::pair{"length", &(roadmarks_line.length)}, std::pair{"s_offset", &(roadmarks_line.s_offset)}})
@@ -1307,6 +1368,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                         repeat_node.attribute("lengthEnd").as_double(NAN),
                                                         repeat_node.attribute("radiusStart").as_double(NAN),
                                                         repeat_node.attribute("radiusEnd").as_double(NAN));
+                    road_object_repeat.additional_data = extract_additional_data(repeat_node);
 
                     for (auto [val_name, val_ptr] : {std::pair{"s0", &(road_object_repeat.s0)},
                                                      std::pair{"width_start", &(road_object_repeat.width_start)},
@@ -1351,6 +1413,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                           outline_node.attribute("laneType").as_string(""),
                                                           outline_node.attribute("outer").as_bool(true),
                                                           outline_node.attribute("closed").as_bool(true));
+                    road_object_outline.additional_data = extract_additional_data(outline_node);
 
                     for (const pugi::xml_node corner_local_node : outline_node.children("cornerLocal"))
                     {
@@ -1362,6 +1425,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                   pt_local,
                                                                   corner_local_node.attribute("height").as_double(0),
                                                                   default_local_outline_type);
+                        road_object_corner_local.additional_data = extract_additional_data(corner_local_node);
                         road_object_outline.outline.push_back(road_object_corner_local);
                     }
 
@@ -1375,6 +1439,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                  pt_road,
                                                                  corner_road_node.attribute("height").as_double(0),
                                                                  RoadObjectCorner::Type::Road);
+                        road_object_corner_road.additional_data = extract_additional_data(corner_road_node);
                         road_object_outline.outline.push_back(road_object_corner_road);
                     }
 
@@ -1392,13 +1457,16 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                         friction = attr.as_double();
                     if (const pugi::xml_attribute attr = material_node.attribute("roughness"))
                         roughness = attr.as_double();
-                    road_object.materials.emplace_back(material_node.attribute("surface").as_string(""), friction, roughness);
+                    RoadObjectMaterial material(material_node.attribute("surface").as_string(""), friction, roughness);
+                    material.additional_data = extract_additional_data(material_node);
+                    road_object.materials.push_back(material);
                 }
 
                 if (const pugi::xml_node parking_space_node = object_node.child("parkingSpace"))
                 {
                     road_object.parking_space = RoadObjectParkingSpace(parking_space_node.attribute("access").as_string(""),
                                                                        parking_space_node.attribute("restrictions").as_string(""));
+                    road_object.parking_space->additional_data = extract_additional_data(parking_space_node);
                 }
 
                 for (const pugi::xml_node marking_node : object_node.child("markings").children("marking"))
@@ -1412,6 +1480,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                               marking_node.attribute("lineLength").as_double(0.0),
                                               marking_node.attribute("startOffset").as_double(0.0),
                                               marking_node.attribute("stopOffset").as_double(0.0));
+                    marking.additional_data = extract_additional_data(marking_node);
                     for (const pugi::xml_node corner_reference_node : marking_node.children("cornerReference"))
                         marking.corner_references.push_back(corner_reference_node.attribute("id").as_int(-1));
                     road_object.markings.push_back(marking);
@@ -1423,6 +1492,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                             border_node.attribute("type").as_string(""),
                                             border_node.attribute("outlineId").as_int(-1),
                                             border_node.attribute("useCompleteOutline").as_bool(true));
+                    border.additional_data = extract_additional_data(border_node);
                     for (const pugi::xml_node corner_reference_node : border_node.children("cornerReference"))
                         border.corner_references.push_back(corner_reference_node.attribute("id").as_int(-1));
                     road_object.borders.push_back(border);
@@ -1439,6 +1509,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                      object_reference_node.attribute("validLength").as_double(0.0),
                                                      object_reference_node.attribute("orientation").as_string("none"));
                 object_reference.lane_validities = extract_lane_validity_records(object_reference_node);
+                object_reference.additional_data = extract_additional_data(object_reference_node);
                 road.object_references.push_back(object_reference);
             }
 
@@ -1456,6 +1527,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                 if (const pugi::xml_attribute attr = tunnel_node.attribute("daylight"))
                     tunnel.daylight = attr.as_double();
                 tunnel.lane_validities = extract_lane_validity_records(tunnel_node);
+                tunnel.additional_data = extract_additional_data(tunnel_node);
                 road.id_to_tunnel.insert({tunnel_id, tunnel});
             }
 
@@ -1469,6 +1541,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                   bridge_node.attribute("name").as_string(""),
                                   bridge_node.attribute("type").as_string(""));
                 bridge.lane_validities = extract_lane_validity_records(bridge_node);
+                bridge.additional_data = extract_additional_data(bridge_node);
                 road.id_to_bridge.insert({bridge_id, bridge});
             }
         }
@@ -1527,15 +1600,18 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
 
                 for (const pugi::xml_node dependency_node : signal_node.children("dependency"))
                 {
-                    road_signal.dependencies.emplace_back(dependency_node.attribute("id").as_string(""),
-                                                          dependency_node.attribute("type").as_string(""));
+                    RoadSignalDependency dependency(dependency_node.attribute("id").as_string(""), dependency_node.attribute("type").as_string(""));
+                    dependency.additional_data = extract_additional_data(dependency_node);
+                    road_signal.dependencies.push_back(dependency);
                 }
 
                 for (const pugi::xml_node reference_node : signal_node.children("reference"))
                 {
-                    road_signal.references.emplace_back(reference_node.attribute("elementType").as_string(""),
-                                                        reference_node.attribute("elementId").as_string(""),
-                                                        reference_node.attribute("type").as_string(""));
+                    RoadSignalElementReference reference(reference_node.attribute("elementType").as_string(""),
+                                                         reference_node.attribute("elementId").as_string(""),
+                                                         reference_node.attribute("type").as_string(""));
+                    reference.additional_data = extract_additional_data(reference_node);
+                    road_signal.references.push_back(reference);
                 }
 
                 // OpenDRIVE 1.6.1, 12.4: positionInertial and positionRoad are mutually exclusive
@@ -1554,6 +1630,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                                position_inertial_node.attribute("hdg").as_double(0.0),
                                                                                position_inertial_node.attribute("pitch").as_double(0.0),
                                                                                position_inertial_node.attribute("roll").as_double(0.0));
+                    road_signal.position_inertial->additional_data = extract_additional_data(position_inertial_node);
                 }
                 if (position_road_node)
                 {
@@ -1564,6 +1641,7 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                                        position_road_node.attribute("hOffset").as_double(0.0),
                                                                        position_road_node.attribute("pitch").as_double(0.0),
                                                                        position_road_node.attribute("roll").as_double(0.0));
+                    road_signal.position_road->additional_data = extract_additional_data(position_road_node);
                 }
             }
 
@@ -1575,10 +1653,17 @@ OpenDriveMap::OpenDriveMap(const std::string& xodr_file,
                                                      signal_reference_node.attribute("t").as_double(0.0),
                                                      signal_reference_node.attribute("orientation").as_string("none"));
                 signal_reference.lane_validities = extract_lane_validity_records(signal_reference_node);
+                signal_reference.additional_data = extract_additional_data(signal_reference_node);
                 road.signal_references.push_back(signal_reference);
             }
         }
     }
+}
+
+AdditionalData OpenDriveMap::get_additional_data(const std::string& path) const
+{
+    const auto iter = this->path_to_additional_data.find(path);
+    return iter == this->path_to_additional_data.end() ? AdditionalData() : iter->second;
 }
 
 Road OpenDriveMap::get_road(const std::string& id) const

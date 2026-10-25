@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include "Math.hpp"
 
 #include <memory>
@@ -24,6 +25,8 @@ struct RoadGeometry
     double y0 = 0;
     double hdg0 = 0;
     double length = 0;
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr

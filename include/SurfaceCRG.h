@@ -1,4 +1,5 @@
 #pragma once
+#include "AdditionalData.h"
 #include <optional>
 #include <string>
 
@@ -23,6 +24,8 @@ struct SurfaceCRG
     double z_offset = 0;
     double z_scale = 1;
     double h_offset = 0; // road only
+
+    AdditionalData additional_data;
 };
 
 } // namespace odr
