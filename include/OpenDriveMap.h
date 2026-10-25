@@ -40,6 +40,8 @@ public:
     const LaneSection*       get_adjacent_lanesection(const std::string& road_id, const double& lanesection_s0, const bool predecessor) const;
     const Lane*              get_adjacent_lane(const Lane& lane, const bool predecessor) const;
     std::vector<const Lane*> get_adjacent_lanes(const Lane& lane, const bool predecessor) const;
+    // lane section a virtual junction connection's <predecessor> / <successor> refers to (OpenDRIVE 1.6.1, 10.4.1)
+    const LaneSection* get_junction_link_lanesection(const JunctionConnectionLink& link) const;
 
     // OpenDRIVE 1.6.1, 12.4: signal box at its physical position, resolving positionRoad on other roads
     Mesh3D          get_road_signal_mesh(const RoadSignal& road_signal) const;

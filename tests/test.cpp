@@ -533,6 +533,40 @@ TEST_CASE("Virtual junctions and junction groups", "[xodr][junction]")
     (void)odr_map.get_routing_graph();
 }
 
+TEST_CASE("Routing through virtual junctions", "[xodr][routing][junction]")
+{
+    const odr::OpenDriveMap odr_map("virtual_junction_routing.xodr");
+
+    const odr::RoadLink& link = odr_map.get_road("2").predecessor;
+    REQUIRE(link.type == odr::RoadLink::Type::Road);
+    REQUIRE(link.contact_point == odr::RoadLink::ContactPoint::None);
+    REQUIRE(link.element_s == 30.0);
+    REQUIRE(link.element_dir == "+");
+    REQUIRE(!odr_map.get_road("1").successor.element_s.has_value());
+
+    // the road link with @elementS points into the lane section of road 1 at s=30
+    const odr::LaneSection* adjacent = odr_map.get_adjacent_lanesection("2", 0.0, true);
+    REQUIRE(adjacent != nullptr);
+    REQUIRE(adjacent->road_id == "1");
+    REQUIRE(adjacent->s0 == 0.0);
+
+    const odr::RoutingGraph routing_graph = odr_map.get_routing_graph();
+    const auto              successors = [&](const odr::LaneKey& key) { return routing_graph.get_lane_successors(key); };
+
+    // regular connections of a virtual junction branch off where the connecting road meets the main road
+    const std::vector<odr::LaneKey> main_right_successors = successors(odr::LaneKey("1", 0.0, -1));
+    REQUIRE(main_right_successors.size() == 2);
+    REQUIRE(std::find(main_right_successors.begin(), main_right_successors.end(), odr::LaneKey("2", 0.0, -1)) != main_right_successors.end());
+    REQUIRE(successors(odr::LaneKey("1", 50.0, -1)) == std::vector<odr::LaneKey>{odr::LaneKey("4", 0.0, -1)});
+
+    // virtual connections link the lanes of the two roads directly
+    REQUIRE(successors(odr::LaneKey("99", 0.0, -1)) == std::vector<odr::LaneKey>{odr::LaneKey("1", 50.0, 1)});
+    const std::vector<odr::LaneKey> main_left_successors = successors(odr::LaneKey("1", 50.0, 1));
+    REQUIRE(main_left_successors.size() == 2);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("99", 0.0, -1), odr::LaneKey("1", 0.0, 1)).size() == 3);
+    REQUIRE(routing_graph.shortest_path(odr::LaneKey("1", 50.0, 1), odr::LaneKey("99", 0.0, 1)).size() == 2);
+}
+
 TEST_CASE("Object material, parking space, markings, borders, references, tunnels and bridges", "[xodr][objects]")
 {
     const odr::OpenDriveMap odr_map("object_extensions.xodr");

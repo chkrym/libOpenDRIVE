@@ -10,6 +10,7 @@
 #include "SurfaceCRG.h"
 
 #include <map>
+#include <optional>
 #include <set>
 #include <stdint.h>
 #include <string>
@@ -59,6 +60,11 @@ struct RoadLink
     std::string  id = "";
     Type         type = Type::None;
     ContactPoint contact_point = ContactPoint::None;
+
+    // OpenDRIVE 1.6.1, 8.2 Road linkage: alternative to @contactPoint for virtual junctions, the road is linked within the
+    // linked road, not at its start or end
+    std::optional<double>      element_s;
+    std::optional<std::string> element_dir; // "+" or "-", direction on the linked road from which the road is entered
 };
 
 struct RoadNeighbor
