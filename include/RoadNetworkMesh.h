@@ -36,6 +36,7 @@ struct LanesMesh : public RoadsMesh
 
     std::map<size_t, double> lanesec_start_indices;
     std::map<size_t, int>    lane_start_indices;
+    std::vector<size_t>      lane_outline_indices; // line pairs, lane cross sections may have more than two vertices
 };
 
 struct RoadmarksMesh : public LanesMesh

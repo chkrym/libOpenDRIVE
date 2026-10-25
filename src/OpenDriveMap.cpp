@@ -1554,7 +1554,10 @@ RoadNetworkMesh OpenDriveMap::get_road_network_mesh(const double eps) const
                 const Lane&       lane = id_lane.second;
                 const std::size_t lanes_idx_offset = lanes_mesh.vertices.size();
                 lanes_mesh.lane_start_indices[lanes_idx_offset] = lane.id;
-                lanes_mesh.add_mesh(road.get_lane_mesh(lane, eps));
+                std::vector<uint32_t> lane_outline_indices;
+                lanes_mesh.add_mesh(road.get_lane_mesh(lane, eps, &lane_outline_indices));
+                for (const uint32_t idx : lane_outline_indices)
+                    lanes_mesh.lane_outline_indices.push_back(lanes_idx_offset + idx);
 
                 std::size_t roadmarks_idx_offset = roadmarks_mesh.vertices.size();
                 roadmarks_mesh.lane_start_indices[roadmarks_idx_offset] = lane.id;

@@ -2,8 +2,12 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <map>
 #include <set>
+#include <string>
+#include <utility>
 
 struct OpenDriveFixture
 {
@@ -299,6 +303,43 @@ TEST_CASE("Lane mesh is subdivided along t for lateral shapes", "[xodr][lateral_
         REQUIRE(!outline_indices.empty());
         for (const uint32_t idx : outline_indices)
             REQUIRE(idx < mesh.vertices.size());
+    }
+}
+
+TEST_CASE("Lane outlines of the road network mesh follow subdivided lane meshes", "[xodr][lateral_shape][mesh]")
+{
+    for (const std::string xodr_file : {"lateral_shape.xodr", "lane_border.xodr"})
+    {
+        odr::OpenDriveMap         odr_map(xodr_file, false);
+        const odr::LanesMesh      lanes_mesh = odr_map.get_road_network_mesh(0.01).lanes_mesh;
+        const std::vector<size_t> outline_indices = lanes_mesh.get_lane_outline_indices();
+        REQUIRE(outline_indices.size() % 2 == 0);
+
+        // the outline consists exactly of the boundary edges (used by one triangle) of each lane mesh
+        std::map<std::pair<size_t, size_t>, int> edge_counts;
+        for (std::size_t idx = 0; idx + 2 < lanes_mesh.indices.size(); idx += 3)
+        {
+            for (std::size_t corner = 0; corner < 3; corner++)
+            {
+                const size_t a = lanes_mesh.indices.at(idx + corner);
+                const size_t b = lanes_mesh.indices.at(idx + (corner + 1) % 3);
+                edge_counts[{std::min(a, b), std::max(a, b)}]++;
+            }
+        }
+        std::set<std::pair<size_t, size_t>> boundary_edges;
+        for (const auto& edge_count : edge_counts)
+            if (edge_count.second == 1)
+                boundary_edges.insert(edge_count.first);
+
+        std::set<std::pair<size_t, size_t>> outline_edges;
+        for (std::size_t idx = 0; idx + 1 < outline_indices.size(); idx += 2)
+        {
+            const size_t a = outline_indices.at(idx);
+            const size_t b = outline_indices.at(idx + 1);
+            REQUIRE(lanes_mesh.get_idx_interval_lane(a) == lanes_mesh.get_idx_interval_lane(b));
+            outline_edges.insert({std::min(a, b), std::max(a, b)});
+        }
+        REQUIRE(outline_edges == boundary_edges);
     }
 }
 
