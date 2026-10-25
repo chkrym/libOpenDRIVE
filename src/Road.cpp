@@ -625,7 +625,7 @@ Mesh3D Road::get_road_signal_mesh(const RoadSignal& road_signal,
 Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double eps) const
 {
     std::vector<RoadObjectRepeat> repeats_copy = road_object.repeats; // make copy to keep method const
-    if (repeats_copy.empty() && road_object.outlines.empty())         // handle single object as 1 object repeat
+    if (repeats_copy.empty())                                         // handle single object as 1 object repeat
     {
         RoadObjectRepeat rp(NAN, 0, 1, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
         repeats_copy.push_back(rp);
@@ -657,20 +657,34 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
 
     Mesh3D road_obj_mesh;
 
-    /* outline objects are not repeated, repeats only apply to the generic road object (box or cylinder) */
-    /* note: if road object has an outline object AND repeat this will create generic objects at repeat AND the outline object (non-repeated) */
+    /* an outline supersedes the bounding box / cylinder: repeated instances get the outline instead of a generic object, continuous repeats
+     * (distance = 0) of outline objects are drawn as the single outline object */
+    const bool has_outlines = !road_object.outlines.empty();
+    bool       added_original_outlines = false;
     for (const RoadObjectRepeat& repeat : repeats_copy)
     {
         const double s_start = std::isnan(repeat.s0) ? road_object.s0 : repeat.s0;
         const double s_end = std::min(s_start + repeat.length, this->length);
 
-        if (repeat.distance != 0)
+        if (has_outlines && repeat.distance == 0)
+        {
+            if (!added_original_outlines)
+                road_obj_mesh.add_mesh(this->get_road_object_outlines_mesh(road_object, road_object.s0, road_object.t0, road_object.z0));
+            added_original_outlines = true;
+        }
+        else if (repeat.distance != 0)
         {
             for (double s = s_start; s <= s_end; s += repeat.distance)
             {
                 const double p = (s_end == s_start) ? 1.0 : (s - s_start) / (s_end - s_start);
                 const double t_s = get_t_s(repeat, p);
                 const double z_s = get_z_s(repeat, p);
+                if (has_outlines)
+                {
+                    road_obj_mesh.add_mesh(this->get_road_object_outlines_mesh(road_object, s, t_s, z_s));
+                    continue;
+                }
+
                 const double height_s = get_height_s(repeat, p);
                 const double w_s = get_width_s(repeat, p);
                 const double l_s = get_length_s(repeat, p);
@@ -749,70 +763,111 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
         }
     }
 
+    return road_obj_mesh;
+}
+
+Mesh3D Road::get_road_object_outlines_mesh(const RoadObject& road_object, const double s_ins, const double t_ins, const double z_ins) const
+{
+    const Mat3D rot_mat = EulerAnglesToMatrix<double>(road_object.roll, road_object.pitch, road_object.hdg);
+
+    Vec3D       e_s, e_t, e_h;
+    const Vec3D p0 = this->get_xyz(s_ins, t_ins, z_ins, &e_s, &e_t, &e_h);
+    const Mat3D base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
+
+    /* corner position of this object instance; road corners are shifted by the offset of the instance to the original object */
+    auto get_corner_xyz = [&](const RoadObjectCorner& corner, const double height) -> Vec3D
+    {
+        if (corner.type == RoadObjectCorner::Type::Local_AbsZ || corner.type == RoadObjectCorner::Type::Local_RelZ)
+        {
+            Vec3D pt = {corner.pt[0], corner.pt[1], corner.pt[2]};
+            if (corner.type == RoadObjectCorner::Type::Local_AbsZ)
+                pt[2] -= p0[2]; // make road relative
+            pt = add(pt, Vec3D{0, 0, height});
+            return add(MatVecMultiplication(base_mat, MatVecMultiplication(rot_mat, pt)), p0);
+        }
+        return this->get_xyz(
+            corner.pt[0] + s_ins - road_object.s0, corner.pt[1] + t_ins - road_object.t0, corner.pt[2] + z_ins - road_object.z0 + height);
+    };
+
+    auto is_point_in_polygon = [](const Vec3D& pt, const std::vector<Vec3D>& polygon) -> bool
+    {
+        bool inside = false;
+        for (std::size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++)
+        {
+            if (((polygon[i][1] > pt[1]) != (polygon[j][1] > pt[1])) &&
+                (pt[0] < (polygon[j][0] - polygon[i][0]) * (pt[1] - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]))
+                inside = !inside;
+        }
+        return inside;
+    };
+
+    /* OpenDRIVE 1.6.1 UC_2Lane-RoundAbout-3Arms: closed inner outlines (outer=false) are the physical parts (e.g. concrete noses and a lowered
+     * sidewalk) of the closed outer outline containing them, which is only the envelope of the object - such outer outlines are not drawn */
+    std::vector<Vec3D> inner_outline_centers;
+    for (const RoadObjectOutline& road_object_outline : road_object.outlines)
+    {
+        if (road_object_outline.outline.size() < 2 || !road_object_outline.closed || road_object_outline.outer)
+            continue;
+        Vec3D center = {0, 0, 0};
+        for (const RoadObjectCorner& corner : road_object_outline.outline)
+            center = add(center, get_corner_xyz(corner, 0));
+        inner_outline_centers.push_back(mut(1.0 / road_object_outline.outline.size(), center));
+    }
+
+    Mesh3D outlines_mesh;
     for (const RoadObjectOutline& road_object_outline : road_object.outlines)
     {
         /* can't add point object */
         if (road_object_outline.outline.size() < 2)
             continue;
 
-        Vec3D       e_s, e_t, e_h;
-        const Vec3D p0 = this->get_xyz(road_object.s0, road_object.t0, road_object.z0, &e_s, &e_t, &e_h);
+        if (road_object_outline.closed && road_object_outline.outer && road_object_outline.outline.size() > 2)
+        {
+            std::vector<Vec3D> base_points;
+            for (const RoadObjectCorner& corner : road_object_outline.outline)
+                base_points.push_back(get_corner_xyz(corner, 0));
+            const bool is_envelope = std::any_of(inner_outline_centers.begin(),
+                                                 inner_outline_centers.end(),
+                                                 [&](const Vec3D& center) { return is_point_in_polygon(center, base_points); });
+            if (is_envelope)
+                continue;
+        }
 
-        const Mat3D base_mat{{{e_s[0], e_t[0], e_h[0]}, {e_s[1], e_t[1], e_h[1]}, {e_s[2], e_t[2], e_h[2]}}};
+        const bool is_flat_object = std::all_of(
+            road_object_outline.outline.begin(), road_object_outline.outline.end(), [](const RoadObjectCorner& c) { return c.height == 0; });
+
+        /* an open outline is a linear feature, it has no area - without height there is nothing to draw */
+        if (!road_object_outline.closed && is_flat_object)
+            continue;
 
         Mesh3D outline_road_obj_mesh;
 
         /* add top outline first - ensure the top vertices are at the front */
-        const bool is_flat_object = std::all_of(
-            road_object_outline.outline.begin(), road_object_outline.outline.end(), [](const RoadObjectCorner& c) { return c.height == 0; });
         if (!is_flat_object)
         {
             for (const RoadObjectCorner& corner : road_object_outline.outline)
             {
-                Vec3D pt_top;
-                if (corner.type == RoadObjectCorner::Type::Local_AbsZ || corner.type == RoadObjectCorner::Type::Local_RelZ)
-                {
-                    pt_top = {corner.pt[0], corner.pt[1], corner.pt[2]};
-                    if (corner.type == RoadObjectCorner::Type::Local_AbsZ)
-                        pt_top[2] -= p0[2]; // make road relative
-                    pt_top = add(pt_top, Vec3D{0, 0, corner.height});
-                    pt_top = add(MatVecMultiplication(base_mat, MatVecMultiplication(rot_mat, pt_top)), p0);
-                }
-                else
-                {
-                    pt_top = this->get_xyz(corner.pt[0], corner.pt[1], corner.pt[2] + corner.height);
-                }
-
-                outline_road_obj_mesh.vertices.push_back(pt_top);
-                outline_road_obj_mesh.st_coordinates.push_back({road_object.s0, road_object.t0});
+                outline_road_obj_mesh.vertices.push_back(get_corner_xyz(corner, corner.height));
+                outline_road_obj_mesh.st_coordinates.push_back({s_ins, t_ins});
             }
         }
 
         /* add bottom outline */
         for (const RoadObjectCorner& corner : road_object_outline.outline)
         {
-            Vec3D pt_base;
-            if (corner.type == RoadObjectCorner::Type::Local_AbsZ || corner.type == RoadObjectCorner::Type::Local_RelZ)
-            {
-                pt_base = {corner.pt[0], corner.pt[1], corner.pt[2]};
-                if (corner.type == RoadObjectCorner::Type::Local_AbsZ)
-                    pt_base[2] -= p0[2]; // make road relative
-                pt_base = add(MatVecMultiplication(base_mat, MatVecMultiplication(rot_mat, pt_base)), p0);
-            }
-            else
-            {
-                pt_base = this->get_xyz(corner.pt[0], corner.pt[1], corner.pt[2]);
-            }
-
-            outline_road_obj_mesh.vertices.push_back(pt_base);
-            outline_road_obj_mesh.st_coordinates.push_back({road_object.s0, road_object.t0});
+            outline_road_obj_mesh.vertices.push_back(get_corner_xyz(corner, 0));
+            outline_road_obj_mesh.st_coordinates.push_back({s_ins, t_ins});
         }
 
-        /* run 2D triangulation on top vertices */
-        const std::vector<size_t> idx_patch_top = mapbox::earcut<size_t>(outline_road_obj_mesh.vertices.data(), road_object_outline.outline.size());
-        outline_road_obj_mesh.indices.insert(outline_road_obj_mesh.indices.end(), idx_patch_top.begin(), idx_patch_top.end());
+        /* run 2D triangulation on top vertices, closed outlines only */
+        if (road_object_outline.closed)
+        {
+            const std::vector<size_t> idx_patch_top =
+                mapbox::earcut<size_t>(outline_road_obj_mesh.vertices.data(), road_object_outline.outline.size());
+            outline_road_obj_mesh.indices.insert(outline_road_obj_mesh.indices.end(), idx_patch_top.begin(), idx_patch_top.end());
+        }
 
-        /* add walls */
+        /* add walls, open outlines have no closing wall */
         if (!is_flat_object)
         {
             const std::size_t N = road_object_outline.outline.size();
@@ -822,14 +877,17 @@ Mesh3D Road::get_road_object_mesh(const RoadObject& road_object, const double ep
                 outline_road_obj_mesh.indices.insert(outline_road_obj_mesh.indices.end(), wall_idx_patch.begin(), wall_idx_patch.end());
             }
 
-            std::array<size_t, 6> last_idx_patch = {N - 1, 2 * N - 1, 0, 0, 2 * N - 1, N};
-            outline_road_obj_mesh.indices.insert(outline_road_obj_mesh.indices.end(), last_idx_patch.begin(), last_idx_patch.end());
+            if (road_object_outline.closed)
+            {
+                std::array<size_t, 6> last_idx_patch = {N - 1, 2 * N - 1, 0, 0, 2 * N - 1, N};
+                outline_road_obj_mesh.indices.insert(outline_road_obj_mesh.indices.end(), last_idx_patch.begin(), last_idx_patch.end());
+            }
         }
 
-        road_obj_mesh.add_mesh(outline_road_obj_mesh);
+        outlines_mesh.add_mesh(outline_road_obj_mesh);
     }
 
-    return road_obj_mesh;
+    return outlines_mesh;
 }
 
 } // namespace odr
