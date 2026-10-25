@@ -44,10 +44,12 @@ struct RoadmarksMesh : public LanesMesh
     virtual ~RoadmarksMesh() = default;
 
     std::string           get_roadmark_type(const std::size_t vert_idx) const;
+    std::string           get_roadmark_color(const std::size_t vert_idx) const;
     std::array<size_t, 2> get_idx_interval_roadmark(const std::size_t vert_idx) const;
     std::vector<size_t>   get_roadmark_outline_indices() const;
 
     std::map<size_t, std::string> roadmark_type_start_indices;
+    std::map<size_t, std::string> roadmark_color_start_indices;
 };
 
 struct RoadObjectsMesh : public RoadsMesh

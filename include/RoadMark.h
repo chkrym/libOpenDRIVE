@@ -23,7 +23,8 @@ struct RoadMarksLine
                   double      t_offset,
                   double      s_offset,
                   std::string name,
-                  std::string rule);
+                  std::string rule,
+                  std::string color);
 
     std::string road_id = "";
     double      lanesection_s0 = 0;
@@ -38,6 +39,7 @@ struct RoadMarksLine
 
     std::string name = "";
     std::string rule = "";
+    std::string color = ""; // OpenDRIVE 1.6.1, 9.6.1: line @color, falls back to the <roadMark> @color
 };
 
 } // namespace odr
@@ -62,7 +64,8 @@ struct less<odr::RoadMarksLine>
                                           &odr::RoadMarksLine::t_offset,
                                           &odr::RoadMarksLine::s_offset,
                                           &odr::RoadMarksLine::name,
-                                          &odr::RoadMarksLine::rule);
+                                          &odr::RoadMarksLine::rule,
+                                          &odr::RoadMarksLine::color);
     }
 };
 } // namespace std
@@ -115,7 +118,8 @@ struct RoadMark
              double      s_end,
              double      t_offset,
              double      width,
-             std::string type);
+             std::string type,
+             std::string color);
 
     std::string road_id = "";
     double      lanesection_s0 = 0;
@@ -128,6 +132,7 @@ struct RoadMark
     double width = 0;
 
     std::string type = "";
+    std::string color = "";
 
     CubicProfile sway; // lateral offset from the lane border, added to t_offset
 };

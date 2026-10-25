@@ -12,7 +12,8 @@ RoadMarksLine::RoadMarksLine(std::string road_id,
                              double      t_offset,
                              double      s_offset,
                              std::string name,
-                             std::string rule) :
+                             std::string rule,
+                             std::string color) :
     road_id(road_id),
     lanesection_s0(lanesection_s0),
     lane_id(lane_id),
@@ -23,7 +24,8 @@ RoadMarksLine::RoadMarksLine(std::string road_id,
     t_offset(t_offset),
     s_offset(s_offset),
     name(name),
-    rule(rule)
+    rule(rule),
+    color(color)
 {
 }
 
@@ -60,7 +62,8 @@ RoadMark::RoadMark(std::string road_id,
                    double      s_end,
                    double      t_offset,
                    double      width,
-                   std::string type) :
+                   std::string type,
+                   std::string color) :
     road_id(road_id),
     lanesection_s0(lanesection_s0),
     lane_id(lane_id),
@@ -69,7 +72,8 @@ RoadMark::RoadMark(std::string road_id,
     s_end(s_end),
     t_offset(t_offset),
     width(width),
-    type(type)
+    type(type),
+    color(color)
 {
 }
 

@@ -83,7 +83,8 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                              s_end_single_roadmark,
                                              roadmarks_line.t_offset,
                                              roadmarks_line.width > 0 ? roadmarks_line.width : group_width,
-                                             roadmark_group.type + roadmarks_line.name));
+                                             roadmark_group.type + roadmarks_line.name,
+                                             roadmarks_line.color));
             }
         }
         else if (roadmark_group.roadmark_lines.empty())
@@ -99,7 +100,8 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                          s_end_roadmark_group,
                                          0,
                                          width,
-                                         roadmark_group.type));
+                                         roadmark_group.type,
+                                         roadmark_group.color));
         }
         else
         {
@@ -124,7 +126,8 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                                  s_end_single_roadmark,
                                                  roadmarks_line.t_offset,
                                                  width,
-                                                 roadmark_group.type + roadmarks_line.name));
+                                                 roadmark_group.type + roadmarks_line.name,
+                                                 roadmarks_line.color));
                 }
             }
         }
