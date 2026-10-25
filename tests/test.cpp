@@ -2,8 +2,12 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <map>
 #include <set>
+#include <string>
+#include <utility>
 
 struct OpenDriveFixture
 {
@@ -256,6 +260,129 @@ TEST_CASE("Lateral profile shape", "[xodr][lateral_shape]")
     REQUIRE(vn[1] == Catch::Approx(-0.25 * inv_norm));
 
     REQUIRE(!odr_map.get_road_network_mesh(0.1).get_mesh().vertices.empty());
+}
+
+static double get_mesh_xy_area(const odr::Mesh3D& mesh, std::size_t* num_downward_faces)
+{
+    double area = 0;
+    *num_downward_faces = 0;
+    for (std::size_t idx = 0; idx + 2 < mesh.indices.size(); idx += 3)
+    {
+        const odr::Vec3D& a = mesh.vertices.at(mesh.indices.at(idx));
+        const odr::Vec3D& b = mesh.vertices.at(mesh.indices.at(idx + 1));
+        const odr::Vec3D& c = mesh.vertices.at(mesh.indices.at(idx + 2));
+        const double      cross_z = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        if (cross_z < 0)
+            (*num_downward_faces)++;
+        area += 0.5 * std::abs(cross_z);
+    }
+    return area;
+}
+
+TEST_CASE("Lane mesh is subdivided along t for lateral shapes", "[xodr][lateral_shape][mesh]")
+{
+    odr::OpenDriveMap      odr_map("lateral_shape.xodr", false);
+    const odr::Road        road = odr_map.get_road("1");
+    const odr::LaneSection lanesection = road.get_lanesection(0.0);
+    const double           eps = 0.01;
+
+    REQUIRE(road.approximate_lateral_shape_linear(-1.0, -4.0, 0.0, eps).size() == 2); // no shape before s=0
+    REQUIRE(road.approximate_lateral_shape_linear(0.0, -4.0, 4.0, eps).size() > 3);
+
+    for (const int lane_id : {-1, 1})
+    {
+        const odr::Lane       lane = lanesection.get_lane(lane_id);
+        std::vector<uint32_t> outline_indices;
+        const odr::Mesh3D     mesh = road.get_lane_mesh(lane, eps, &outline_indices);
+
+        // more than the two lane border points per cross section at s=0, where the shape is curved
+        std::size_t num_s0_pts = 0;
+        for (const odr::Vec2D& st : mesh.st_coordinates)
+            if (st[0] == 0.0)
+                num_s0_pts++;
+        REQUIRE(num_s0_pts > 2);
+
+        // vertices lie on the surface, midpoints between neighbouring points of a cross section are within eps of the shape
+        for (std::size_t idx = 0; idx < mesh.vertices.size(); idx++)
+        {
+            const odr::Vec2D& st = mesh.st_coordinates.at(idx);
+            REQUIRE(mesh.vertices.at(idx)[2] == Catch::Approx(road.get_lateral_shape(st[0], st[1])).margin(1e-9));
+            if (idx + 1 < mesh.vertices.size() && mesh.st_coordinates.at(idx + 1)[0] == st[0])
+            {
+                const double t_mid = 0.5 * (st[1] + mesh.st_coordinates.at(idx + 1)[1]);
+                const double z_mid = 0.5 * (mesh.vertices.at(idx)[2] + mesh.vertices.at(idx + 1)[2]);
+                REQUIRE(std::abs(z_mid - road.get_lateral_shape(st[0], t_mid)) <= eps + 1e-9);
+            }
+        }
+
+        // the triangles cover the lane exactly once and all face up
+        std::size_t num_downward_faces = 0;
+        REQUIRE(get_mesh_xy_area(mesh, &num_downward_faces) == Catch::Approx(400.0));
+        REQUIRE(num_downward_faces == 0);
+
+        REQUIRE(!outline_indices.empty());
+        for (const uint32_t idx : outline_indices)
+            REQUIRE(idx < mesh.vertices.size());
+    }
+}
+
+TEST_CASE("Lane outlines of the road network mesh follow subdivided lane meshes", "[xodr][lateral_shape][mesh]")
+{
+    for (const std::string xodr_file : {"lateral_shape.xodr", "lane_border.xodr"})
+    {
+        odr::OpenDriveMap         odr_map(xodr_file, false);
+        const odr::LanesMesh      lanes_mesh = odr_map.get_road_network_mesh(0.01).lanes_mesh;
+        const std::vector<size_t> outline_indices = lanes_mesh.get_lane_outline_indices();
+        REQUIRE(outline_indices.size() % 2 == 0);
+
+        // the outline consists exactly of the boundary edges (used by one triangle) of each lane mesh
+        std::map<std::pair<size_t, size_t>, int> edge_counts;
+        for (std::size_t idx = 0; idx + 2 < lanes_mesh.indices.size(); idx += 3)
+        {
+            for (std::size_t corner = 0; corner < 3; corner++)
+            {
+                const size_t a = lanes_mesh.indices.at(idx + corner);
+                const size_t b = lanes_mesh.indices.at(idx + (corner + 1) % 3);
+                edge_counts[{std::min(a, b), std::max(a, b)}]++;
+            }
+        }
+        std::set<std::pair<size_t, size_t>> boundary_edges;
+        for (const auto& edge_count : edge_counts)
+            if (edge_count.second == 1)
+                boundary_edges.insert(edge_count.first);
+
+        std::set<std::pair<size_t, size_t>> outline_edges;
+        for (std::size_t idx = 0; idx + 1 < outline_indices.size(); idx += 2)
+        {
+            const size_t a = outline_indices.at(idx);
+            const size_t b = outline_indices.at(idx + 1);
+            REQUIRE(lanes_mesh.get_idx_interval_lane(a) == lanes_mesh.get_idx_interval_lane(b));
+            outline_edges.insert({std::min(a, b), std::max(a, b)});
+        }
+        REQUIRE(outline_edges == boundary_edges);
+    }
+}
+
+TEST_CASE("Lane mesh without lateral shape stays a triangle strip", "[xodr][mesh]")
+{
+    odr::OpenDriveMap odr_map("lane_border.xodr", false);
+    for (const odr::Road& road : odr_map.get_roads())
+    {
+        for (const odr::LaneSection& lanesection : road.get_lanesections())
+        {
+            for (const odr::Lane& lane : lanesection.get_lanes())
+            {
+                std::vector<uint32_t> outline_indices;
+                const odr::Mesh3D     mesh = road.get_lane_mesh(lane, 0.1, &outline_indices);
+                REQUIRE(mesh.vertices.size() % 2 == 0);
+                REQUIRE(mesh.indices.size() == 3 * (mesh.vertices.size() - 2));
+                REQUIRE(outline_indices == odr::get_triangle_strip_outline_indices<uint32_t>(mesh.vertices.size()));
+                std::size_t num_downward_faces = 0;
+                get_mesh_xy_area(mesh, &num_downward_faces);
+                REQUIRE(num_downward_faces == 0);
+            }
+        }
+    }
 }
 
 TEST_CASE("Level lanes exclude superelevation and lateral shape", "[xodr][lateral_shape][level]")

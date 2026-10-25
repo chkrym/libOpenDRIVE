@@ -122,8 +122,9 @@ public:
     approximate_lane_border_linear(const Lane& lane, const double s_start, const double s_end, const double eps, const bool outer = true) const;
     std::set<double> approximate_lane_border_linear(const Lane& lane, const double eps, const bool outer = true) const;
 
-    double get_lateral_shape(const double s, const double t) const;
-    double get_lateral_shape_derivative(const double s, const double t) const;
+    double           get_lateral_shape(const double s, const double t) const;
+    double           get_lateral_shape_derivative(const double s, const double t) const;
+    std::set<double> approximate_lateral_shape_linear(const double s, const double t_start, const double t_end, const double eps) const;
 
     double      length = 0;
     std::string id = "";

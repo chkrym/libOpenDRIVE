@@ -66,6 +66,9 @@ std::array<size_t, 2> LanesMesh::get_idx_interval_lane(const std::size_t vert_id
 
 std::vector<size_t> LanesMesh::get_lane_outline_indices() const
 {
+    // lane meshes subdivided along t (lateral shape) are no plain triangle strips, their outlines are stored on creation
+    if (!this->lane_outline_indices.empty())
+        return this->lane_outline_indices;
     return get_outline_indices<int>(this->lane_start_indices, this->vertices.size());
 }
 
