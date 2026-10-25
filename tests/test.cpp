@@ -1206,3 +1206,59 @@ TEST_CASE("Additional data on every element", "[xodr][additional_data]")
     REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/junction[1]/connection[1]/laneLink[1]")) == "lane_link");
     REQUIRE(code_of(odr_map.get_additional_data("/OpenDRIVE/header[1]/offset[1]")) == "offset");
 }
+
+TEST_CASE("Object outline meshes", "[xodr][objects]")
+{
+    const odr::OpenDriveMap odr_map("object_outline.xodr");
+    const odr::Road&        road = odr_map.get_road("1");
+
+    // signed area of the triangles in the xy plane
+    auto get_area = [](const odr::Mesh3D& mesh, std::size_t first_idx, std::size_t num_indices)
+    {
+        double area = 0;
+        for (std::size_t i = first_idx; i < first_idx + num_indices; i += 3)
+        {
+            const odr::Vec3D& a = mesh.vertices[mesh.indices[i]];
+            const odr::Vec3D& b = mesh.vertices[mesh.indices[i + 1]];
+            const odr::Vec3D& c = mesh.vertices[mesh.indices[i + 2]];
+            area += 0.5 * std::abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]));
+        }
+        return area;
+    };
+
+    // repeated outline replaces the bounding box: 3 instances of 4 top + 4 bottom vertices
+    const odr::Mesh3D lamps_mesh = road.get_road_object_mesh(road.id_to_object.at("lamps"), 0.1);
+    REQUIRE(lamps_mesh.vertices.size() == 3 * 8);
+    for (std::size_t i = 0; i < 3; i++)
+    {
+        double x_min = INFINITY, x_max = -INFINITY;
+        for (std::size_t v = i * 8; v < (i + 1) * 8; v++)
+        {
+            x_min = std::min(x_min, lamps_mesh.vertices[v][0]);
+            x_max = std::max(x_max, lamps_mesh.vertices[v][0]);
+            REQUIRE(lamps_mesh.vertices[v][1] == Catch::Approx(5.0).margin(0.5));
+        }
+        REQUIRE(x_max - x_min == Catch::Approx(1.0));
+        REQUIRE(0.5 * (x_max + x_min) == Catch::Approx(50.0 * i));
+    }
+
+    // repeated road corners are shifted along s
+    const odr::Mesh3D posts_mesh = road.get_road_object_mesh(road.id_to_object.at("posts"), 0.1);
+    REQUIRE(posts_mesh.vertices.size() == 2 * 8);
+    REQUIRE(posts_mesh.vertices[0][0] == Catch::Approx(9.5));
+    REQUIRE(posts_mesh.vertices[8][0] == Catch::Approx(29.5));
+    REQUIRE(posts_mesh.vertices[8][1] == Catch::Approx(-5.5));
+
+    // open outline: walls along the corners only, no cap and no closing wall
+    const odr::Mesh3D wall_mesh = road.get_road_object_mesh(road.id_to_object.at("wall"), 0.1);
+    REQUIRE(wall_mesh.vertices.size() == 6);
+    REQUIRE(wall_mesh.indices.size() == 2 * 6);
+
+    // inner outline is a part of the object, the outer outline containing it is only its envelope and not drawn
+    const odr::Mesh3D island_mesh = road.get_road_object_mesh(road.id_to_object.at("island"), 0.1);
+    REQUIRE(island_mesh.vertices.size() == 8);
+    REQUIRE(island_mesh.indices.size() == 2 * 3 + 4 * 6); // cap + 4 wall quads
+    REQUIRE(get_area(island_mesh, 0, 2 * 3) == Catch::Approx(4.0));
+    for (const odr::Vec3D& pt : island_mesh.vertices)
+        REQUIRE(std::abs(pt[1] - 10.0) == Catch::Approx(1.0));
+}
