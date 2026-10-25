@@ -275,6 +275,46 @@ double Road::get_lateral_shape_derivative(const double s, const double t) const
     return interpolate_lateral_shape(this->s_to_lateral_shape, s, t, &CubicProfile::derivative);
 }
 
+// t values in [t_start, t_end] for which a linear interpolation of the lateral shape at s stays within eps, includes t_start and t_end
+std::set<double> Road::approximate_lateral_shape_linear(const double s, const double t_start, const double t_end, const double eps) const
+{
+    std::set<double> t_vals{t_start, t_end};
+    if (t_start >= t_end)
+        return t_vals;
+
+    auto s1_shape_iter = this->s_to_lateral_shape.upper_bound(s);
+    if (s1_shape_iter == this->s_to_lateral_shape.begin())
+        return t_vals; // no shape before the first profile
+
+    // the shape at s is interpolated between the profiles at s0 and s1, sample the polynomial borders of both
+    std::vector<const CubicProfile*> shape_profiles{&std::prev(s1_shape_iter)->second};
+    if (s1_shape_iter != this->s_to_lateral_shape.end())
+        shape_profiles.push_back(&s1_shape_iter->second);
+
+    for (const CubicProfile* shape_profile : shape_profiles)
+    {
+        if (shape_profile->segments.empty())
+            continue;
+
+        // the first polynomial also applies before its t (extend_start), which CubicProfile::approximate_linear does not cover
+        const double     t_first_poly = shape_profile->segments.begin()->first;
+        std::set<double> t_vals_shape;
+        if (t_start < t_first_poly)
+            t_vals_shape = shape_profile->segments.begin()->second.approximate_linear(eps, t_start, std::min(t_first_poly, t_end));
+        if (t_end > t_first_poly)
+        {
+            const std::set<double> t_vals_polys = shape_profile->approximate_linear(eps, std::max(t_first_poly, t_start), t_end);
+            t_vals_shape.insert(t_vals_polys.begin(), t_vals_polys.end());
+        }
+
+        for (const double t : t_vals_shape)
+            if (t > t_start && t < t_end)
+                t_vals.insert(t);
+    }
+
+    return t_vals;
+}
+
 std::set<double>
 Road::approximate_lane_border_linear(const Lane& lane, const double s_start, const double s_end, const double eps, const bool outer) const
 {
@@ -376,38 +416,104 @@ Mesh3D Road::get_lane_mesh(const Lane& lane, const double s_start, const double 
             s_iter++;
     }
 
-    Mesh3D out_mesh;
+    // OpenDRIVE 1.6.1, 8.4.3: the lateral shape may be curved along t, so each cross section is sampled at the t values needed to
+    // approximate the shape within eps (and at t=0, where the crossfall changes its sign), not only at the two lane borders. Level
+    // lanes are flat (9.5.8) and keep the two border points.
+    const bool subdivide_t = !lane.level && !this->s_to_lateral_shape.empty();
+
+    Mesh3D                   out_mesh;
+    std::vector<std::size_t> row_start_indices;
     for (const double& s : s_vals)
     {
-        Vec3D        vn_outer_brdr{0, 0, 0};
-        const double t_outer_brdr = lane.outer_border.evaluate(s);
-        out_mesh.vertices.push_back(this->get_surface_pt(s, t_outer_brdr, &vn_outer_brdr));
-        out_mesh.normals.push_back(vn_outer_brdr);
-        out_mesh.st_coordinates.push_back({s, t_outer_brdr});
+        row_start_indices.push_back(out_mesh.vertices.size());
 
-        Vec3D        vn_inner_brdr{0, 0, 0};
+        const double t_outer_brdr = lane.outer_border.evaluate(s);
         const double t_inner_brdr =
             std::nextafter(inner_neighbor_lane.outer_border.evaluate(s), t_outer_brdr); // ensure t is not on lane boundary but within lane
-        out_mesh.vertices.push_back(this->get_surface_pt(s, t_inner_brdr, &vn_inner_brdr));
-        out_mesh.normals.push_back(vn_inner_brdr);
-        out_mesh.st_coordinates.push_back({s, t_inner_brdr});
+
+        // sample points of the cross section, ordered from the outer to the inner border
+        std::vector<double> t_vals{t_outer_brdr};
+        if (subdivide_t)
+        {
+            const double     t_min = std::min(t_outer_brdr, t_inner_brdr);
+            const double     t_max = std::max(t_outer_brdr, t_inner_brdr);
+            std::set<double> t_vals_shape = this->approximate_lateral_shape_linear(s, t_min, t_max, eps);
+            if (t_min < 0.0 && t_max > 0.0)
+                t_vals_shape.insert(0.0);
+            for (const double t : t_vals_shape)
+                if (t > t_min && t < t_max)
+                    t_vals.push_back(t);
+            if (t_outer_brdr > t_inner_brdr)
+                std::reverse(std::next(t_vals.begin()), t_vals.end()); // the points between the borders are in ascending order
+        }
+        t_vals.push_back(t_inner_brdr);
+
+        for (const double t : t_vals)
+        {
+            Vec3D vn{0, 0, 0};
+            out_mesh.vertices.push_back(this->get_surface_pt(s, t, &vn));
+            out_mesh.normals.push_back(vn);
+            out_mesh.st_coordinates.push_back({s, t});
+        }
+    }
+    row_start_indices.push_back(out_mesh.vertices.size());
+
+    // relative position of a vertex within its cross section, 0 at the outer and 1 at the inner border
+    const auto get_row_param = [&](const std::size_t row, const std::size_t idx) -> double
+    {
+        const std::size_t row_start = row_start_indices.at(row);
+        const std::size_t row_end = row_start_indices.at(row + 1) - 1;
+        const double      t_outer = out_mesh.st_coordinates.at(row_start)[1];
+        const double      t_inner = out_mesh.st_coordinates.at(row_end)[1];
+        if (t_outer == t_inner)
+            return static_cast<double>(idx - row_start) / static_cast<double>(row_end - row_start);
+        return (out_mesh.st_coordinates.at(idx)[1] - t_outer) / (t_inner - t_outer);
+    };
+
+    // triangulate between consecutive cross sections, which may differ in their number of points, by advancing along the
+    // cross section whose next point comes first; for two points per cross section this gives the plain triangle strip
+    const bool ccw = lane.id < 0;
+    for (std::size_t row = 1; row + 1 < row_start_indices.size(); row++)
+    {
+        std::size_t       idx_prev = row_start_indices.at(row - 1);
+        std::size_t       idx_cur = row_start_indices.at(row);
+        const std::size_t idx_prev_end = row_start_indices.at(row) - 1;
+        const std::size_t idx_cur_end = row_start_indices.at(row + 1) - 1;
+        while (idx_prev < idx_prev_end || idx_cur < idx_cur_end)
+        {
+            const bool advance_cur =
+                (idx_prev == idx_prev_end) || ((idx_cur < idx_cur_end) && (get_row_param(row, idx_cur + 1) <= get_row_param(row - 1, idx_prev + 1)));
+            const std::size_t                idx_next = advance_cur ? (idx_cur + 1) : (idx_prev + 1);
+            const std::array<std::size_t, 3> indices_tri =
+                ccw ? std::array<std::size_t, 3>{idx_prev, idx_cur, idx_next} : std::array<std::size_t, 3>{idx_prev, idx_next, idx_cur};
+            out_mesh.indices.insert(out_mesh.indices.end(), indices_tri.begin(), indices_tri.end());
+            (advance_cur ? idx_cur : idx_prev) = idx_next;
+        }
     }
 
-    const std::size_t num_pts = out_mesh.vertices.size();
-    const bool        ccw = lane.id < 0;
-    for (std::size_t idx = 3; idx < num_pts; idx += 2)
+    if (outline_indices && row_start_indices.size() > 1)
     {
-        std::array<size_t, 6> indicies_patch;
-        if (ccw)
-            indicies_patch = {idx - 3, idx - 1, idx, idx - 3, idx, idx - 2};
-        else
-            indicies_patch = {idx - 3, idx, idx - 1, idx - 3, idx - 2, idx};
-        out_mesh.indices.insert(out_mesh.indices.end(), indicies_patch.begin(), indicies_patch.end());
-    }
-
-    if (outline_indices)
-    {
-        *outline_indices = get_triangle_strip_outline_indices<uint32_t>(out_mesh.vertices.size());
+        // outer border, inner border, then the first and the last cross section
+        outline_indices->clear();
+        const std::size_t num_rows = row_start_indices.size() - 1;
+        for (std::size_t row = 0; row + 1 < num_rows; row++)
+        {
+            outline_indices->push_back(row_start_indices.at(row));
+            outline_indices->push_back(row_start_indices.at(row + 1));
+        }
+        for (std::size_t row = 0; row + 1 < num_rows; row++)
+        {
+            outline_indices->push_back(row_start_indices.at(row + 1) - 1);
+            outline_indices->push_back(row_start_indices.at(row + 2) - 1);
+        }
+        for (const std::size_t row : {std::size_t(0), num_rows - 1})
+        {
+            for (std::size_t idx = row_start_indices.at(row); idx + 1 < row_start_indices.at(row + 1); idx++)
+            {
+                outline_indices->push_back(idx);
+                outline_indices->push_back(idx + 1);
+            }
+        }
     }
 
     return out_mesh;
