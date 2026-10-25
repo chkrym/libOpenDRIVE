@@ -547,12 +547,14 @@ TEST_CASE("Road mark simple types", "[xodr][roadmark]")
 
     // "broken": dashes of ROADMARK_BROKEN_LENGTH every ROADMARK_BROKEN_LENGTH + ROADMARK_BROKEN_SPACE, clipped to the group
     const std::vector<odr::RoadMark> broken = lane.get_roadmarks(20.0, 40.0);
-    REQUIRE(broken.size() == 2);
-    REQUIRE(broken[0].s_start == 20.0);
-    REQUIRE(broken[0].s_end == 20.0 + odr::ROADMARK_BROKEN_LENGTH);
-    REQUIRE(broken[1].s_start == 20.0 + odr::ROADMARK_BROKEN_LENGTH + odr::ROADMARK_BROKEN_SPACE);
-    REQUIRE(broken[1].s_end <= 40.0);
-    REQUIRE(broken[0].t_offset == 0.0);
+    const double                     period = odr::ROADMARK_BROKEN_LENGTH + odr::ROADMARK_BROKEN_SPACE;
+    REQUIRE(broken.size() == static_cast<std::size_t>(std::ceil(20.0 / period)));
+    for (std::size_t idx = 0; idx < broken.size(); idx++)
+    {
+        REQUIRE(broken[idx].s_start == Catch::Approx(20.0 + idx * period));
+        REQUIRE(broken[idx].s_end == Catch::Approx(std::min(40.0, 20.0 + idx * period + odr::ROADMARK_BROKEN_LENGTH)));
+        REQUIRE(broken[idx].t_offset == 0.0);
+    }
 
     // "solid solid": two solid lines spaced by the line width
     const std::vector<odr::RoadMark> solid_solid = lane.get_roadmarks(40.0, 60.0);
@@ -569,7 +571,7 @@ TEST_CASE("Road mark simple types", "[xodr][roadmark]")
 
     // "solid broken": solid line at positive t, broken line at negative t
     const std::vector<odr::RoadMark> solid_broken = lane.get_roadmarks(60.0, 80.0);
-    REQUIRE(solid_broken.size() == 3);
+    REQUIRE(solid_broken.size() == 1 + static_cast<std::size_t>(std::ceil(20.0 / period)));
     REQUIRE(solid_broken[0].t_offset == 0.15);
     REQUIRE(solid_broken[0].s_end == 80.0);
     for (std::size_t idx = 1; idx < solid_broken.size(); idx++)
